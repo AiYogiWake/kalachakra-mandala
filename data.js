@@ -37,8 +37,9 @@ export const STAGES = [
   { n: 5, short: 'Near-attainment', title: 'Space — Near-Attainment (nyer thob)', sign: 'Eclipse-dark black appearance', text: 'Space dissolves; the Great Bliss lotus fades. White appearance and red increase give way to the eclipse-dark near-attainment (Tib. nyer thob), like a moonless night sky.' },
   { n: 6, short: 'Clear Light', title: 'Clear Light', sign: 'Autumn-dawn sky, utterly clear', text: 'The consciousness disk dissolves into the bindu. Only the clear light remains — luminous, vast, without center.' },
   { n: 7, short: 'Emanation', title: 'Emanation Bodies Arise', sign: 'Arising from the bindu', text: 'From the clear light, emanation bodies bloom outward from the bindu in the five family colours, and the palace and fields re-manifest.' },
+  { n: 8, short: 'Phowa — release', title: 'Phowa: transference of consciousness', sign: 'Release a soul from the body, physical attachment', text: 'The bindu rises up the central axis, through the roof tip at 200 hasta and beyond. The palace and body dissolve into light, and the water that became a being lets the being go.' },
 ];
-export const BINDU_INTENSITY = [1.0, 1.35, 1.75, 2.2, 2.7, 3.3, 4.0, 4.8];
+export const BINDU_INTENSITY = [1.0, 1.35, 1.75, 2.2, 2.7, 3.3, 4.0, 4.8, 5.4];
 
 export const FAMILIES = [
   { key: 'buddha', name: 'Buddha family',  buddha: 'Vairocana',     dakini: 'Buddha Ḍākinī', color: '#f4f4ff', dir: 'Center', pos: [0, 0] },
