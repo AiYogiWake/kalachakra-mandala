@@ -61,6 +61,47 @@
   #tip .b { font-family:'Tiro Devanagari Sanskrit',serif; color:var(--gold); font-size:20px; margin-right:6px; }
   #loading { position:fixed; inset:0; display:grid; place-items:center; z-index:20; background:#020309; color:var(--gold); font-family:'Cormorant Garamond',serif; font-size:22px; transition:opacity 1s; }
   #err { position:fixed; bottom:4px; right:6px; color:#f77; font-size:11px; z-index:30; }
+
+  #yogas { max-height: calc(100% - 175px); overflow:auto; }
+  .stage { padding:5px 8px; margin:2px 0; }
+  #tabs { top:14px; left:50%; transform:translateX(-50%); padding:5px; display:flex; gap:4px; z-index:6; }
+  .tab { padding:6px 12px; border-radius:8px; border:1px solid rgba(120,140,255,.25); background:rgba(20,24,60,.4); color:var(--ink); font:500 12px Inter,sans-serif; cursor:pointer; }
+  .tab:hover { border-color:var(--gold); }
+  .tab.active { background:linear-gradient(180deg, rgba(255,211,107,.28), rgba(255,211,107,.06)); border-color:var(--gold); color:#fff2c9; }
+  details.ex { margin:6px 0; border:1px solid rgba(120,140,255,.22); border-radius:8px; background:rgba(16,20,52,.45); }
+  details.ex > summary { cursor:pointer; padding:5px 9px; font-weight:600; color:#ffe9b0; font-size:12px; list-style:none; }
+  details.ex > summary::before { content:'▸ '; color:var(--gold); } details.ex[open] > summary::before { content:'▾ '; }
+  details.ex > *:not(summary) { margin:4px 10px 8px; }
+  details.ex p { font-size:12px; line-height:1.5; color:#d5dbff; }
+  .voice { padding:7px 9px; border-left:2px solid #7cf; background:rgba(60,140,255,.08); font-style:italic; color:#cfe6ff; font-size:12px; line-height:1.5; }
+  .voice .vl, .vl { display:block; font-style:normal; font-size:10px; letter-spacing:.04em; text-transform:uppercase; color:#7fb8ff; margin-bottom:2px; }
+  .rh { margin-top:8px; font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--dim); }
+  ul.refs { padding-left:16px; margin:4px 0; font-size:11px; line-height:1.45; color:#bcc4ee; } ul.refs a { color:#9fd0ff; } ul.refs.big { font-size:13px; } ul.refs.big li { margin:5px 0; }
+  .note.small, #stageText .note { font-size:10.5px; margin-top:8px; padding:6px 8px; border-left:2px solid var(--gold); background:rgba(255,211,107,.06); color:#c8c2a8; }
+  h3.gh { font-size:16px; margin-top:12px; }
+  ol.phases { margin:4px 0 4px 18px; padding:0; font-size:11.5px; } ol.phases li { cursor:pointer; margin:2px 0; color:#cfd7ff; } ol.phases li:hover b { color:var(--gold); }
+  .btn.big { display:block; width:100%; margin:8px 0; padding:8px; font-size:13px; border-color:var(--c,var(--gold)); background:color-mix(in srgb, var(--c,#ffd36b) 18%, transparent); }
+  #chainBar { left:50%; transform:translateX(-50%); bottom:74px; width:min(620px, calc(100% - 640px)); min-width:420px; padding:9px 12px; z-index:6; border-color:var(--c); box-shadow:0 0 22px color-mix(in srgb, var(--c) 35%, transparent); }
+  #chPhase { font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--dim); margin-right:8px; }
+  #chName { font-family:'Cormorant Garamond',serif; font-size:19px; color:var(--gold); font-weight:600; }
+  #chVoice { font-size:12px; font-style:italic; color:#cfe6ff; margin:3px 0 5px; } #chVoice .vl { display:inline; margin-right:4px; }
+  #chDots { display:flex; gap:5px; margin:4px 0 6px; } #chDots i { width:12px; height:12px; border-radius:50%; border:1px solid var(--c); cursor:pointer; opacity:.5; }
+  #chDots i.past { background:color-mix(in srgb, var(--c) 50%, transparent); opacity:.8; } #chDots i.on { background:var(--c); opacity:1; box-shadow:0 0 8px var(--c); transform:scale(1.25); }
+  #chainBar .ctl button { margin:0 4px 0 0; padding:4px 10px; border-radius:7px; border:1px solid rgba(255,211,107,.45); background:rgba(255,211,107,.08); color:#ffe9b0; font:500 11.5px Inter,sans-serif; cursor:pointer; }
+  #humanPanel { top:14px; left:14px; width:300px; padding:12px; z-index:5; max-height:calc(100% - 150px); overflow:auto; display:none; }
+  #humanPanel h1 { font-size:19px; } #humanPanel .sub { font-size:11px; color:var(--dim); margin:2px 0 8px; }
+  #tummoText { font-size:11.5px; line-height:1.45; color:#b9c2f0; margin-top:8px; padding-top:8px; border-top:1px solid var(--line); } #tummoText b { color:var(--gold); }
+  ul.inst { padding-left:16px; margin:5px 0; } ul.inst li { margin:3px 0; }
+  .kt { display:block; margin:8px 0; font-size:11.5px; color:#cfe6ff; }
+  body.human #yogas, body.human #fieldbar, body.human #controls .rowmorph, body.human #chainBar { display:none !important; }
+  body.human #humanPanel { display:block; }
+  #overlay { position:fixed; inset:0; z-index:15; background:rgba(1,2,8,.66); display:none; place-items:center; }
+  .ovbox { position:relative !important; width:min(860px, 92vw); max-height:86vh; overflow:auto; padding:22px 26px; font-size:13.5px; line-height:1.6; }
+  .ovbox h2 { font-size:30px; } .sub2 { color:var(--dim); margin:2px 0 10px; font-style:italic; }
+  #ovClose { position:sticky; float:right; top:0; border:1px solid var(--gold); background:rgba(255,211,107,.1); color:#ffe9b0; border-radius:8px; padding:4px 10px; cursor:pointer; }
+  .dlg > summary { font-family:'Cormorant Garamond',serif; font-size:19px !important; }
+  p.turn { margin:6px 0 !important; } p.turn.DL b { color:#ffcf7a; } p.turn.LC b { color:#8fd0ff; } p.turn.LC { padding-left:18px; }
+  #ovBody .note { margin:8px 0; padding:8px 10px; border-left:2px solid var(--gold); background:rgba(255,211,107,.06); color:#d8d0b0; font-size:12.5px; }
   @media (max-width: 900px) { #info { width:240px; font-size:11px; } #fieldbar { max-width:calc(100% - 28px); bottom:150px; min-width:0; } }
 </style>
 </head>
@@ -75,13 +116,17 @@
   <div id="stageText"></div>
 </div>
 
+<div id="tabs" class="panel"><button class="tab active" data-mode="palace">Palace of Time</button><button class="tab" data-mode="human">The Human Maṇḍala — Three Kāyas</button><button class="tab" data-ov="purpose">Purpose of Kālacakra</button><button class="tab" data-ov="refs">References</button></div>
+<div id="humanPanel" class="panel"><h1>Inner fire · Tummo</h1><div class="sub">Holographic body · click a step; nothing advances by itself.</div><div id="tummoButtons"></div><div id="tummoText"></div></div>
 <div id="info" class="panel"></div>
+<div id="chainBar" class="panel" style="display:none"><div><span id="chPhase"></span><span id="chName"></span></div><div id="chVoice"></div><div id="chDots"></div><div class="ctl"><button id="chPrev">◀ Step back</button><button id="chPlay">⏸ Pause</button><button id="chNext">Step ▶</button><button id="chFocus">⌖ Focus</button><button id="chClose">✕ Close</button></div></div>
+<div id="overlay"><div class="ovbox panel"><button id="ovClose">✕ Close</button><div id="ovBody"></div></div></div>
 
 <div id="fieldbar" class="panel"></div>
 
 <div id="controls" class="panel">
-  <label style="justify-content:space-between"><span>2D plan</span><b style="color:var(--gold)">Plan ↔ Palace extrusion</b><span>3D</span></label>
-  <input id="morph" type="range" min="0" max="1" step="0.01" value="1" />
+  <div class="rowmorph"><label style="justify-content:space-between"><span>2D plan</span><b style="color:var(--gold)">Plan ↔ Palace extrusion</b><span>3D</span></label>
+  <input id="morph" type="range" min="0" max="1" step="0.01" value="1" /></div>
   <div class="row">
     <label><input type="checkbox" id="labels" checked /> Labels</label>
     <label><input type="checkbox" id="cube" checked /> Cube of time</label>
