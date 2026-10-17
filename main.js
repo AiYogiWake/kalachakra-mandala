@@ -6,6 +6,9 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import * as D from './data.js';
 import { FORMS, INIT, TILT, rng } from './forms.js';
+import { EXPLAIN, STAGE_EXPLAIN, LEVEL_EXPLAIN, DISK_EXPLAIN, FIELD_EXPLAIN, HUMAN_INFO, TUMMO_STEPS, DIALOGUE, REFS, VOICE_NOTE, DIALOGUE_NOTE, PRACTICE_NOTE, shaktiNote } from './teachings.js';
+import { shaktiChain, threadChain } from './chains.js';
+import { createHuman } from './human.js';
 
 const TAU = Math.PI * 2;
 const DEVA = "'Tiro Devanagari Sanskrit','Noto Sans Devanagari','Noto Serif Devanagari',serif";
@@ -16,6 +19,7 @@ const $ = (s) => document.querySelector(s);
 const state = {
   stage: 0, binduIntensity: D.BINDU_INTENSITY[0], binduLevel: D.BINDU_INTENSITY[0],
   morph: 1, selectedShakti: null, hoveredShakti: null, field: null, labels: true,
+  mode: 'palace', tummoStep: -1, phowa: 0, chain: null,
 };
 window.__state = state;
 
@@ -38,7 +42,7 @@ controls.minDistance = 20; controls.maxDistance = 3000;
 controls.update();
 
 const composer = new EffectComposer(renderer);
-composer.addPass(new RenderPass(scene, camera));
+const renderPass = new RenderPass(scene, camera); composer.addPass(renderPass);
 const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.6, 0.45, 0.32);
 composer.addPass(bloom);
 composer.addPass(new OutputPass());
@@ -162,6 +166,7 @@ const col = (h) => new THREE.Color(h);
 
 // ------------------------------------------------------------------ morph (2D plan ↔ 3D)
 const lifted = []; // objects whose world Y scales with the morph
+const extraPicks = []; // labels and other clickable explainers
 function lift(obj, y) { obj.userData.baseY = y; obj.position.y = y; lifted.push(obj); return obj; }
 
 // ------------------------------------------------------------------ background stars
@@ -199,6 +204,52 @@ function gate(level, side, g) {
     pts.push(dx ? new THREE.Vector3(dx * (w / 2 + gd + 0.2), level.y + v, u) : new THREE.Vector3(u, level.y + v, dz * (w / 2 + gd + 0.2))); }
   g.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), lineMat(GOLD, 0.9)));
 }
+// richer architecture: five-coloured wall bands, parapets, offering-goddess friezes, toranas, deity seats
+function decorate(L, g, li) {
+  const BAND = ['#3b4dff', '#ff2a44', '#f0f4ff', '#ffc22a', '#3dff7a'];
+  const w = L.w, H = L.top - L.y, h = w / 2, sc = w / 200;
+  // five coloured wall bands on the outer face (lower part of each floor)
+  BAND.forEach((c, k) => g.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(squareLoop(w + 0.6, L.y + H * (0.05 + k * 0.035))), lineMat(c, 0.6))));
+  // offering ledge
+  g.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(squareLoop(w + 3 * Math.max(sc, 0.3), L.y + H * 0.24)), lineMat('#ff8fd0', 0.5)));
+  // parapet: crenellated merlons along the top edge + hanging garlands below
+  const mer = []; const mh = Math.max(0.8, H * 0.05), n = Math.max(6, Math.round(w / (w > 60 ? 5 : 2.5)));
+  for (let side = 0; side < 4; side++) { const pts = []; for (let k = 0; k <= n * 2; k++) { const u = k / (n * 2), along = -h + u * w; const top = L.top - (k % 2 ? 0 : mh);
+      const p = [[along, -h], [h, along], [-along, h], [-h, -along]][side]; pts.push(new THREE.Vector3(p[0], top, p[1]), new THREE.Vector3(p[0], k % 2 ? top : L.top, p[1])); }
+    mer.push(...pts); }
+  g.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(mer), lineMat(L.color, 0.55)));
+  // particle details: garlands, frieze of offering goddesses, toranas, seats
+  const pts = [], cols = [];
+  const push = (x, y, z, c, b = 1) => { pts.push(x, y, z); const C = col(c); cols.push(C.r * b, C.g * b, C.b * b); };
+  const onWall = (side, along, y, out, f) => { const p = [[along, -h - out], [h + out, along], [-along, h + out], [-h - out, -along]][side]; f(p[0], y, p[1]); };
+  const gl = Math.max(6, Math.round(w / 6));
+  for (let side = 0; side < 4; side++) for (let k = 0; k < gl; k++) for (let q = 0; q <= 8; q++) { const u = (k + q / 8) / gl; const along = -h + u * w; const sag = Math.sin(q / 8 * Math.PI) * H * 0.06;
+    onWall(side, along, L.top - mh - H * 0.04 - sag, 0.4, (x, y, z) => push(x, y, z, q % 4 === 0 ? GOLD : '#ffffff', 0.7)); }
+  // offering goddesses on the ledge: tiny figures holding up offerings
+  const ng = Math.max(3, Math.round(w / 7)); const fh = Math.max(1.6, Math.min(7, H * 0.12));
+  for (let side = 0; side < 4; side++) for (let k = 0; k < ng; k++) { const along = -h + (k + 0.5) / ng * w; if (L.gates && Math.abs(along) < w * 0.12) continue; const c = BAND[(k + side) % 5]; const y0 = L.y + H * 0.24;
+    onWall(side, along, y0, 1.2 * Math.max(sc, 0.3), (x, y, z) => { const tx = side % 2 ? 0 : 1, tz = side % 2 ? 1 : 0;
+      for (let q = 0; q < 6; q++) push(x, y + fh * (0.1 + q * 0.12), z, c, 0.9); // body
+      push(x, y + fh * 0.95, z, '#fff2d0', 1.2); // head
+      for (let q = 1; q <= 3; q++) { push(x + tx * fh * 0.12 * q, y + fh * (0.62 + q * 0.1), z + tz * fh * 0.12 * q, c, 0.8); push(x - tx * fh * 0.12 * q, y + fh * (0.62 + q * 0.1), z - tz * fh * 0.12 * q, c, 0.8); }
+      push(x, y + fh * 1.25, z, GOLD, 1.5); // the offering held aloft
+      for (let q = -2; q <= 2; q++) push(x + tx * q * fh * 0.1, y, z + tz * q * fh * 0.1, c, 0.6); }); }
+  // toranas over each gate: dharma wheel flanked by two deer
+  if (L.gates) for (let side = 0; side < 4; side++) { const gw = Math.max(4, w * 0.18), y0 = L.y + H * 0.78, rr = gw * 0.22, out = w * 0.09 + 0.6;
+    onWall(side, 0, y0, out, (x, y, z) => { const tx = side % 2 ? 0 : 1, tz = side % 2 ? 1 : 0;
+      for (let q = 0; q < 40; q++) { const a = q / 40 * TAU; push(x + tx * Math.cos(a) * rr, y + Math.sin(a) * rr, z + tz * Math.cos(a) * rr, GOLD, 1.1); }
+      for (let sp = 0; sp < 8; sp++) for (let q = 1; q < 6; q++) { const a = sp / 8 * TAU, r2 = rr * q / 6; push(x + tx * Math.cos(a) * r2, y + Math.sin(a) * r2, z + tz * Math.cos(a) * r2, GOLD, 0.9); }
+      for (const s2 of [-1, 1]) { const dx = s2 * rr * 2.0; for (let q = 0; q < 14; q++) { const a = q / 14 * TAU; push(x + tx * (dx + Math.cos(a) * rr * 0.55), y - rr * 0.6 + Math.sin(a) * rr * 0.3, z + tz * (dx + Math.cos(a) * rr * 0.55), '#ffe9b0', 0.8); }
+        push(x + tx * (dx - s2 * rr * 0.55), y - rr * 0.1, z + tz * (dx - s2 * rr * 0.55), '#ffe9b0', 1); }
+      for (let q = 0; q <= 24; q++) { const u = q / 24; push(x + tx * (u - .5) * gw * 1.2, y + rr * 1.5, z + tz * (u - .5) * gw * 1.2, L.color, 0.9); } }); }
+  // deity seats (lotus · moon disk · seed) in rows inside the floor
+  const ns = { body: 12, speech: 8, mind: 5, wisdom: 2 }[L.key] || 0; const sr = Math.max(0.8, 2.6 * Math.sqrt(sc));
+  for (let side = 0; side < 4; side++) for (let k = 0; k < ns; k++) { const along = -h * 0.72 + (k + 0.5) / ns * w * 0.72; onWall(side, along, L.y + 0.6, -h * 0.12 - sr, (x, y, z) => {
+      for (let q = 0; q < 16; q++) { const a = q / 16 * TAU, r3 = sr * (0.75 + 0.25 * Math.abs(Math.cos(a * 4))); push(x + Math.cos(a) * r3, y, z + Math.sin(a) * r3, ['#ff6aa8', '#ffffff'][q % 2], 0.8); }
+      push(x, y + 0.3, z, GOLD, 1.6); }); }
+  const P = makePoints(pts.length / 3, li === 0 ? 1.7 : li === 1 ? 1.25 : 0.9, 0.85, 0.3);
+  P.geometry.attributes.position.array.set(pts); P.geometry.attributes.aColor.array.set(cols); g.add(P);
+}
 D.LEVELS.forEach((L, li) => {
   const g = new THREE.Group(); g.userData.level = L;
   if (L.key !== 'bliss') {
@@ -211,7 +262,8 @@ D.LEVELS.forEach((L, li) => {
     for (const [k, a, b] of quads) { const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute([0, y, 0, a[0], y, a[1], b[0], y, b[1]], 3)); g.add(new THREE.Mesh(geo, faceMat(QUAD[k], 0.05))); }
     if (L.gates) for (let s = 0; s < 4; s++) gate(L, s, g);
     const lab = makeLabel(L.skt, `${L.name} · ${L.w}×${L.w} hasta`, L.color, li === 0 ? 13 : 8.5);
-    lab.position.set(L.w / 2 + (li === 0 ? 50 : 26), L.y + (L.top - L.y) * 0.5, L.w / 2 + 8); g.add(lab);
+    lab.position.set(L.w / 2 + (li === 0 ? 50 : 26), L.y + (L.top - L.y) * 0.5, L.w / 2 + 8); g.add(lab); lab.userData.type = 'level'; lab.userData.key = L.key; extraPicks.push(lab);
+    decorate(L, g, li);
   }
   palaceRoot.add(g); levelGroups.push(g);
 });
@@ -283,10 +335,21 @@ const deities = figurePoints([
   { n: 1300, h: 8.6, arms: 4, color: '#ffb020', x: 0, y: 175.6, z: 0.9, rot: Math.PI, seed: 9 },
 ], 0.75);
 bliss.add(deities);
-{ const lab = makeLabel('कालचक्र · विश्वमाता', 'Kālacakra embracing Viśvamātā', '#8fb4ff', 4.2); lab.position.set(0, 191, 0); bliss.add(lab); }
+{ const lab = makeLabel('कालचक्र · विश्वमाता', 'Kālacakra embracing Viśvamātā', '#8fb4ff', 4.2); lab.position.set(0, 191, 0); bliss.add(lab); lab.userData.type = 'deities'; extraPicks.push(lab); }
+{ const lab = makeLabel('महासुख', 'Great Bliss · green lotus', '#ffd84a', 3.4); lab.position.set(0, 172.2, 9); bliss.add(lab); lab.userData.type = 'level'; lab.userData.key = 'bliss'; extraPicks.push(lab); }
 
 // ------------------------------------------------------------------ six elemental disks
 const diskObjs = [];
+// finer disk textures: each element gets its own inscribed pattern
+function diskPattern(Dk, R, tri, u, v, i) {
+  const k = Dk.key;
+  if (k === 'earth') { const a = (u - .5) * 2 * R * 0.72, b = (Math.round(v * 8) / 8 - .5) * 2 * R * 0.72; return i % 2 ? [a, b] : [b, a]; } // vajra grid
+  if (k === 'water') { const ring = Math.floor(v * 7) + 1, th = u * TAU; const rr = R * ring / 7.5 + Math.sin(th * 14 + ring) * 1.6; return [Math.cos(th) * rr, Math.sin(th) * rr]; } // ripples
+  if (k === 'fire') { const e = Math.floor(v * 3), a = tri[e], b = tri[(e + 1) % 3]; const w = u; const mx = a[0] + (b[0] - a[0]) * w, mz = a[1] + (b[1] - a[1]) * w; const tongue = Math.pow(Math.abs(Math.sin(w * Math.PI * 9)), 2) * R * 0.18 * ((i * 0.37) % 1); const l = Math.hypot(mx, mz) || 1; return [mx - mx / l * tongue, mz - mz / l * tongue]; } // flame tongues
+  if (k === 'wind') { const arm = Math.floor(v * 4), th = Math.PI * u; const rr = R * (0.25 + 0.18 * arm) + Math.sin(th * 6 + arm) * 2; return [Math.cos(th) * rr, -Math.sin(th) * rr + R * 0.35]; } // gust arcs
+  if (k === 'space') { if (i % 2) { const sp = Math.floor(v * 8) / 8 * TAU, rr = u * R; return [Math.cos(sp) * rr, Math.sin(sp) * rr]; } const th = u * TAU; return [Math.cos(th) * R * 0.5, Math.sin(th) * R * 0.5]; } // wheel of space
+  { const arm = i % 2, th = u * TAU * 1.6 + arm * Math.PI, rr = R * u; return [Math.cos(th) * rr, Math.sin(th) * rr]; } // consciousness spiral
+}
 const disksRoot = new THREE.Group(); palaceRoot.add(disksRoot);
 D.DISKS.forEach((Dk, k) => {
   const n = 2400, p = makePoints(n, 1.9, 0.38, 0.6); const pos = p.geometry.attributes.position.array, c = p.geometry.attributes.aColor.array, s = p.geometry.attributes.aSize.array;
@@ -296,7 +359,8 @@ D.DISKS.forEach((Dk, k) => {
     else if (Dk.shape === 'triangle') { let a = u, b = v; if (a + b > 1) { a = 1 - a; b = 1 - b; } x = tri[0][0] + (tri[1][0] - tri[0][0]) * a + (tri[2][0] - tri[0][0]) * b; z = tri[0][1] + (tri[1][1] - tri[0][1]) * a + (tri[2][1] - tri[0][1]) * b; }
     else if (Dk.shape === 'bow') { const th = Math.PI * u, rr = R * Math.sqrt(v); x = Math.cos(th) * rr; z = -Math.sin(th) * rr + R * 0.35; }
     else { const th = u * TAU, rr = R * Math.sqrt(v); x = Math.cos(th) * rr; z = Math.sin(th) * rr; }
-    pos.set([x, Dk.y + (Math.random() - .5) * 2.5, z], i * 3); const b = 0.45 + Math.random() * 0.6; c.set([C.r * b, C.g * b, C.b * b], i * 3); s[i] = 0.5 + Math.random() * 1.3; }
+    let pat = false; if (i % 3 === 0) { const pp = diskPattern(Dk, R, tri, Math.random(), Math.random(), i); if (pp) { x = pp[0]; z = pp[1]; pat = true; } }
+    pos.set([x, Dk.y + (Math.random() - .5) * (pat ? 0.6 : 2.5), z], i * 3); const b = pat ? 0.9 + Math.random() * 0.4 : 0.45 + Math.random() * 0.6; c.set([C.r * b, C.g * b, C.b * b], i * 3); s[i] = 0.5 + Math.random() * 1.3; }
   // outline
   let pts = [];
   if (Dk.shape === 'square') pts = squareLoop(R * 1.44, Dk.y);
@@ -305,7 +369,7 @@ D.DISKS.forEach((Dk, k) => {
   else for (let i = 0; i <= 96; i++) { const th = i / 96 * TAU; pts.push(new THREE.Vector3(Math.cos(th) * R, Dk.y, Math.sin(th) * R)); }
   const outline = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), lineMat(Dk.color, 0.9));
   const g = new THREE.Group(); g.add(p, outline);
-  const lab = makeLabel(Dk.skt, Dk.name, Dk.color, 8); lab.position.set(-(R + 30), Dk.y, 0); g.add(lab);
+  const lab = makeLabel(Dk.skt, Dk.name, Dk.color, 8); lab.position.set(-(R + 30), Dk.y, 0); g.add(lab); lab.userData.type = 'disk'; lab.userData.key = Dk.key; extraPicks.push(lab);
   disksRoot.add(g);
   const tgt = k < 5 ? new THREE.Vector3(0, D.DISKS[k + 1].y, 0) : new THREE.Vector3(0, D.BINDU_Y, 0);
   p.material.uniforms.uTarget.value.copy(tgt);
@@ -419,16 +483,30 @@ let bubbleLabel = null, bubbleLabelFor = -1;
 const MR = { a: new Float32Array(MAN_N), b: new Float32Array(MAN_N), c: new Float32Array(MAN_N), d: new Float32Array(MAN_N) };
 for (let i = 0; i < MAN_N; i++) { MR.a[i] = Math.random(); MR.b[i] = Math.random(); MR.c[i] = Math.random(); MR.d[i] = Math.random(); }
 const manFrom = new Float32Array(MAN_N * 3); const manCtx = new Map();
-let manActive = null, manT0 = 0, manAlpha = 0;
+let manActive = null, manT0 = 0, manAlpha = 0; // manActive: { key, form, field, ph, node }
 const FORM_SIZE = 28;
+const manFromC = new Float32Array(MAN_N * 3); let manKey = null; const cenCur = new THREE.Vector3(), cenFrom = new THREE.Vector3(); let manFirst = true;
+// chain playback (multi-phase emanation thread) — starts ONLY on a click
+const PH_DUR = 3.6, MORPH_DUR = 1.6;
+let chain = null, chainId = 0;
+const CH_N = 1800; const chainStream = makePoints(CH_N, 1.6, 0, 0); chainStream.renderOrder = 28; scene.add(chainStream);
+
+// ------------------------------------------------------------------ PHOWA: palace dissolves to light, bindu rises out through the roof tip
+const PHOWA_RISE = 235, PHOWA_DUR = 9;
+const PH_N = 4200; const phowaDust = makePoints(PH_N, 1.5, 0, 0.5); palaceRoot.add(phowaDust);
+const phowaBase = new Float32Array(PH_N * 3), phowaCol = new Float32Array(PH_N * 3), phowaDelay = new Float32Array(PH_N);
+{ const r = rng(77); for (let i = 0; i < PH_N; i++) { const L = D.LEVELS[Math.min(3, Math.floor(Math.pow(r(), 1.6) * 4))]; const h = L.w / 2; const side = Math.floor(r() * 4), along = (r() - .5) * L.w; const y = L.y + r() * (L.top - L.y);
+    const p = [[along, -h], [h, along], [-along, h], [-h, -along]][side]; phowaBase.set([p[0], y, p[1]], i * 3); const c = col(r() < 0.5 ? L.color : ['#3b4dff', '#ff2a44', '#f0f4ff', '#ffc22a', '#3dff7a'][i % 5]); phowaCol.set([c.r, c.g, c.b], i * 3); phowaDelay[i] = r() * 0.35 + (1 - y / 200) * 0.2; } }
+const BEAM_N = 1400; const phowaBeam = makePoints(BEAM_N, 2.0, 0, 0); scene.add(phowaBeam);
 
 // ------------------------------------------------------------------ UI
+binduCore.userData.type = 'bindu'; extraPicks.push(binduCore);
 const stageBox = $('#stageButtons');
-const stageCols = ['#ffd36b', '#ffc928', '#4fc3ff', '#ff5a2a', '#5fffb0', '#2a2f55', '#e6f0ff', '#ff5ad8'];
+const stageCols = ['#ffd36b', '#ffc928', '#4fc3ff', '#ff5a2a', '#5fffb0', '#2a2f55', '#e6f0ff', '#ff5ad8', '#fff6d0'];
 D.STAGES.forEach((s) => {
   if (s.n === 0) return;
   const b = document.createElement('button'); b.className = 'stage'; b.dataset.stage = s.n; b.style.setProperty('--c', stageCols[s.n]);
-  b.innerHTML = `<span class="dot">${s.n === 7 ? '✺' : s.n}</span><span class="t">${s.short}<small>${s.sign}</small></span>`;
+  b.innerHTML = `<span class="dot">${s.n === 7 ? '✺' : s.n === 8 ? '⇡' : s.n}</span><span class="t">${s.short}<small>${s.sign}</small></span>`;
   b.addEventListener('click', () => setStage(s.n)); stageBox.appendChild(b);
 });
 { const b = document.createElement('button'); b.className = 'stage reset'; b.dataset.stage = 0; b.textContent = '↺ Re-manifest full mandala'; b.addEventListener('click', () => setStage(0)); stageBox.appendChild(b); }
@@ -438,12 +516,17 @@ $('#morph').addEventListener('input', (e) => setMorph(parseFloat(e.target.value)
 $('#labels').addEventListener('change', (e) => { state.labels = e.target.checked; });
 $('#cube').addEventListener('change', (e) => { cubeOfTime.visible = e.target.checked; });
 $('#topView').onclick = () => flyTo(new THREE.Vector3(0, 1250, 0.01), new THREE.Vector3(0, 0, 0));
-$('#resetView').onclick = () => flyTo(HOME.pos.clone(), HOME.target.clone());
-$('#about').onclick = () => showOverview();
+$('#resetView').onclick = () => flyTo(state.mode === 'human' ? human.home.pos.clone() : HOME.pos.clone(), state.mode === 'human' ? human.home.target.clone() : HOME.target.clone());
+$('#about').onclick = () => (state.mode === 'human' ? showHumanInfo('intro') : showOverview());
+
+// ---- expandable explanation helpers
+function refsHTML(keys) { return (keys || []).map((k) => REFS[k]).filter(Boolean).map((r) => r.url ? `<li><a href="${r.url}" target="_blank" rel="noopener">${r.cite}</a></li>` : `<li>${r.cite}</li>`).join(''); }
+function ex(e, title, open = false) { if (!e) return '';
+  return `<details class="ex"${open ? ' open' : ''}><summary>${title || e.t || 'Explain'}</summary>${e.p ? `<p>${e.p}</p>` : ''}${e.m ? `<div class="voice"><span class="vl">Imagined voice · “Longchenpa landed in modern times”</span>${e.m}</div>` : ''}${e.r && e.r.length ? `<div class="rh">References</div><ul class="refs">${refsHTML(e.r)}</ul>` : ''}</details>`; }
 
 function stageText() {
   const s = D.STAGES[state.stage];
-  $('#stageText').innerHTML = `<b>${s.title}</b><br>${s.text}<br><span style="color:#8590c0">Bindu intensity ×${D.BINDU_INTENSITY[state.stage].toFixed(2)}</span>`;
+  $('#stageText').innerHTML = `<b>${s.title}</b><br>${s.text}<br><span style="color:#8590c0">Bindu intensity ×${D.BINDU_INTENSITY[state.stage].toFixed(2)}</span>${ex(STAGE_EXPLAIN[state.stage], 'Explain this stage ▸')}${state.stage === 8 ? `<div class="note small">${'Phowa is traditionally practised only after transmission and instruction from a qualified teacher. This is a symbolic visualisation, not instruction.'}</div>` : ''}`;
   document.querySelectorAll('.stage').forEach((b) => b.classList.toggle('active', +b.dataset.stage === state.stage && state.stage !== 0));
 }
 function setStage(n) {
@@ -452,21 +535,36 @@ function setStage(n) {
 let stageT0 = 0;
 
 function fmtFamily(f) { return `<i style="color:${f.color};background:${f.color}"></i>${f.name} — ${f.buddha} <span class="muted">(${f.dir})</span>`; }
+function guideHTML() {
+  return `<h3 class="gh">Guide to every element</h3>
+   ${['overview', 'cube', 'bindu', 'deities', 'blissShaktis', 'matrikas', 'cascade', 'fieldsLoop'].map((k) => ex(EXPLAIN[k])).join('')}
+   <div class="rh">Five floors</div>${D.LEVELS.map((L) => ex(LEVEL_EXPLAIN[L.key], `${L.name} · ${L.w}×${L.w} hasta`)).join('')}
+   <div class="rh">Six elemental disks</div>${D.DISKS.map((Dk) => ex(DISK_EXPLAIN[Dk.key], Dk.name)).join('')}
+   <div class="rh">Eight fields</div>${D.FIELDS.map((F) => ex(FIELD_EXPLAIN[F.key], `${F.name} field`)).join('')}
+   <div class="note small">${VOICE_NOTE}</div>`;
+}
 function showOverview() {
   state.selectedShakti = null; cascadeIdx = null;
   $('#info').innerHTML = `<h2>Kālacakra Maṇḍala Palace</h2>
   <div class="muted">Wheel of Time · a cube of time — 200 × 200 × 200 hasta (1 hasta ≈ 6 ft ≈ 1200 ft)</div>
   <p>Five nested floors: <b style="color:#38e8ff">Body</b> 200×200 (ground, four gates) · <b style="color:#ff4fd8">Speech</b> 100×100 raised 100 · <b style="color:#7c8bff">Mind</b> 50×50 raised 50 · <b style="color:#9dff6a">Exalted Wisdom</b> 25×25 raised 25 · <b style="color:#ffd84a">Great Bliss</b> on a green lotus — Kālacakra embracing Viśvamātā amid eight shaktis. Roof tip at 200 hasta.</p>
   <p>Beneath: six elemental disks, gross → subtle: earth, water, fire, wind, space, consciousness.</p>
-  <p>Around: eight elemental fields in a closed, non-hierarchical orbit (earth → water → fire → desire → ether → mind → air → light → earth), eight shaktis each — <b>64 luminous bija nodes</b>. Hover a node to see its manifestation form; click to select it and trace its emanation (bija → ḍākinī → Buddha family → planet → nakshatra).</p>
-  <p class="muted">Drag to orbit · scroll to zoom · right-drag to pan · click a field core or chip to isolate a field.</p>
-  <div class="note"><b>About the associations.</b> The palace proportions, the floors, the six elemental disks, the Six Yogas dissolution signs, the five Buddha families, the eight Great-Bliss shaktis and the Aṣṭamātṛkā names follow commonly published descriptions of the Kālacakra system and Śākta tradition. The specific per-shakti bija syllables, Sanskrit descriptive names, ḍākinī / family / planet / nakshatra assignments, and the matrika-to-field pairing are an <b>artistic, interpretive mapping</b> made for this visualization — not quotations from any tantra or commentary.</div>`;
+  <p>Around: eight elemental fields in a closed, non-hierarchical orbit (earth → water → fire → desire → ether → mind → air → light → earth), eight shaktis each — <b>64 luminous bija nodes</b>. Hover a node to preview its form; <b>click</b> it to play its emanation thread — intention → its phase → the field’s story → hand-off into the next field. Each field panel has <b>▶ Play the whole thread</b>.</p>
+  <p class="muted">Drag to orbit · scroll to zoom · right-drag to pan · click floor/disk labels, the bindu or the deities for explanations.</p>
+  ${guideHTML()}
+  <div class="note"><b>About the associations.</b> The palace proportions, the floors, the six elemental disks, the Six Yogas dissolution signs, the five Buddha families, the eight Great-Bliss shaktis and the Aṣṭamātṛkā names follow commonly published descriptions of the Kālacakra system and Śākta tradition. The specific per-shakti bija syllables, Sanskrit descriptive names, ḍākinī / family / planet / nakshatra assignments, the matrika-to-field pairing and the emanation threads are an <b>artistic, interpretive mapping</b> made for this visualization — not quotations from any tantra or commentary.</div>`;
 }
 function showShakti(s) {
   const F = D.FIELDS[s.field], fam = D.FAMILIES[s.fam], pl = D.PLANETS[s.planet];
+  const ch = shaktiChain(s.idx);
   $('#info').innerHTML = `<div class="muted">${F.name} field · shakti ${s.j + 1} of 8 · #${s.idx + 1}/64</div>
    <div style="display:flex;align-items:center;gap:12px"><div class="bija-big" id="bijaBtn" title="Click to emanate">${s.bija}</div>
    <div><h2>${s.name}</h2><div class="muted">bija <b style="color:${GOLD}">${s.iast}</b></div><div>Manifests as <b style="color:${F.color}">${s.formName}</b></div></div></div>
+   <div class="rh">Emanation thread (${ch.length} phases)</div>
+   <ol class="phases">${ch.map((p, k) => `<li data-k="${k}"><b>${p.name}</b></li>`).join('')}</ol>
+   <button class="btn" id="playBtn">▶ Replay this thread</button><button class="btn" id="thrBtn">▶ Play the whole ${F.name} thread</button>
+   ${ex(shaktiNote(s, F.name), 'About this shakti ▸')}
+   <div class="rh">Cascade</div>
    <div class="chain">
      <div class="lnk"><i style="color:${GOLD};background:${GOLD}"></i>Syllable <b style="color:${GOLD};font-family:${DEVA}">${s.bija}</b> (${s.iast})</div><div class="arrow">▼ generates</div>
      <div class="lnk"><i style="color:${fam.color};background:${fam.color}"></i>${s.dakini} <span class="muted">— dakini of ${s.name}</span></div><div class="arrow">▼ belongs to</div>
@@ -474,10 +572,14 @@ function showShakti(s) {
      <div class="lnk"><i style="color:${pl.color};background:${pl.color}"></i>Planet ${pl.name} <span style="font-family:${DEVA};color:${GOLD}">${pl.skt}</span></div><div class="arrow">▼ shines in</div>
      <div class="lnk"><i style="color:#cfe0ff;background:#cfe0ff"></i>Nakshatra ${D.NAKSHATRAS[s.star]}</div>
    </div>
+   ${ex(EXPLAIN.cascade)}
    <button class="btn" id="emanBtn">✺ Emanate again</button><button class="btn" id="focusBtn">⌖ Focus on form</button><button class="btn" id="clrBtn">✕ Clear</button>
-   <div class="note">Bija, descriptive name and cascade are an interpretive mapping (see About).</div>`;
+   <div class="note">Bija, descriptive name, thread and cascade are an interpretive mapping (see About).</div>`;
   $('#bijaBtn').onclick = $('#emanBtn').onclick = () => startCascade(s.idx);
-  $('#focusBtn').onclick = () => focusShakti(s.idx); $('#clrBtn').onclick = () => { showOverview(); };
+  $('#playBtn').onclick = () => startChain(shaktiChain(s.idx), 'shakti', s.field);
+  $('#thrBtn').onclick = () => playThread(s.field);
+  document.querySelectorAll('.phases li').forEach((el) => el.onclick = () => { if (chain && chain.mode === 'shakti' && chain.src === s.idx) goPhase(+el.dataset.k, true); else { startChain(shaktiChain(s.idx), 'shakti', s.field, s.idx); goPhase(+el.dataset.k, true); } });
+  $('#focusBtn').onclick = () => focusCurrent(); $('#clrBtn').onclick = () => { stopChain(); showOverview(); };
 }
 function showMisc(html) { state.selectedShakti = null; $('#info').innerHTML = html + `<button class="btn" id="backBtn">← Overview</button>`; $('#backBtn').onclick = showOverview; }
 function selectField(fi) {
@@ -486,40 +588,117 @@ function selectField(fi) {
   const F = D.FIELDS[fi], M = D.MATRIKAS[F.matrika]; const list = D.SHAKTIS.filter((s) => s.field === fi);
   showMisc(`<h2 style="color:${F.color}">${F.name} field <span style="font-family:${DEVA}">${F.skt}</span></h2>
    <div class="muted">One of eight equal fields on a closed loop — no field is above another. Paired (interpretively) with the mother <b style="color:${M.color}">${M.name}</b>.</div>
-   <div class="list">${list.map((s) => `<div class="item" data-i="${s.idx}"><span>${s.bija}</span>${s.name}<br><small class="muted">${s.formName}</small></div>`).join('')}</div>`);
+   <button class="btn big" id="threadBtn" style="--c:${F.color}">▶ Play the whole thread</button>
+   <div class="list">${list.map((s) => `<div class="item" data-i="${s.idx}"><span>${s.bija}</span>${s.name}<br><small class="muted">${s.formName}</small></div>`).join('')}</div>
+   ${ex(FIELD_EXPLAIN[F.key], `About the ${F.name} field ▸`, true)}${ex(EXPLAIN.fieldsLoop)}`);
+  $('#threadBtn').onclick = () => playThread(fi);
   document.querySelectorAll('.list .item').forEach((el) => el.onclick = () => selectShakti(+el.dataset.i));
 }
 function selectShakti(i) {
   const s = D.SHAKTIS[i]; state.selectedShakti = i; if (state.field !== null && state.field !== s.field) { state.field = s.field; document.querySelectorAll('.chip').forEach((c) => c.classList.toggle('active', +c.dataset.fi === s.field)); }
-  showShakti(s); startCascade(i);
+  showShakti(s); startCascade(i); startChain(shaktiChain(i), 'shakti', s.field, i);
 }
+function playThread(fi) { startChain(threadChain(fi), 'thread', fi, null); }
 function startCascade(i) {
   cascadeIdx = i; cascadeT0 = clock.elapsedTime; const s = D.SHAKTIS[i], fam = D.FAMILIES[s.fam];
   dakiniSprite.material.map = bijaTex(s.bija, fam.color); dakiniSprite.material.needsUpdate = true;
   if (dakiniLabel) scene.remove(dakiniLabel); dakiniLabel = makeLabel('डाकिनी', s.dakini, fam.color, 7); scene.add(dakiniLabel);
 }
+// ---- chain playback controls (click-triggered only)
+function startChain(phases, mode, fi, src = null) { chain = { phases, i: 0, t0: clock.elapsedTime, playing: true, mode, fi, src, id: ++chainId }; renderChainBar(); }
+function stopChain() { chain = null; renderChainBar(); }
+function goPhase(k, user = false) { if (!chain) return; chain.i = Math.max(0, Math.min(chain.phases.length - 1, k)); chain.t0 = clock.elapsedTime; if (user) chain.playing = false; renderChainBar(); }
+function renderChainBar() { const bar = $('#chainBar');
+  if (!chain) { bar.style.display = 'none'; state.chain = null; return; } bar.style.display = 'block'; const ph = chain.phases[chain.i]; const F = D.FIELDS[ph.field];
+  state.chain = { i: chain.i, n: chain.phases.length, playing: chain.playing, mode: chain.mode, form: ph.form, kind: ph.kind, name: ph.name, id: chain.id };
+  bar.style.setProperty('--c', F.color);
+  $('#chPhase').textContent = `${chain.mode === 'thread' ? D.FIELDS[chain.fi].name + ' thread' : 'Emanation thread'} · phase ${chain.i + 1}/${chain.phases.length}`;
+  $('#chName').textContent = ph.name; $('#chVoice').innerHTML = `<span class="vl">Imagined voice · Longchenpa:</span> ${ph.voice}`;
+  $('#chDots').innerHTML = chain.phases.map((p, k) => `<i class="${k === chain.i ? 'on' : k < chain.i ? 'past' : ''}" style="--c:${D.FIELDS[p.field].color}" data-k="${k}" title="${p.name.replace(/"/g, '')}"></i>`).join('');
+  document.querySelectorAll('#chDots i').forEach((el) => el.onclick = () => goPhase(+el.dataset.k, true));
+  $('#chPlay').textContent = chain.playing ? '⏸ Pause' : (chain.i >= chain.phases.length - 1 ? '↺ Replay' : '▶ Play');
+}
+$('#chPrev').onclick = () => goPhase(chain ? chain.i - 1 : 0, true);
+$('#chNext').onclick = () => goPhase(chain ? chain.i + 1 : 0, true);
+$('#chPlay').onclick = () => { if (!chain) return; if (chain.playing) chain.playing = false; else { if (chain.i >= chain.phases.length - 1) chain.i = 0; chain.playing = true; chain.t0 = clock.elapsedTime; } renderChainBar(); };
+$('#chClose').onclick = () => stopChain();
+$('#chFocus').onclick = () => focusCurrent();
+
 function shaktiWorld(i, v = new THREE.Vector3()) { return shaktiSprites[i].getWorldPosition(v); }
 function formCenter(i, v = new THREE.Vector3()) { shaktiWorld(i, v); const o = new THREE.Vector3(v.x, 0, v.z).normalize().multiplyScalar(18); v.add(o); v.y += 64; return v; }
-function focusShakti(i) {
-  const c = formCenter(i); const out = new THREE.Vector3(c.x, 0, c.z).normalize();
-  flyTo(c.clone().add(out.multiplyScalar(88)).add(new THREE.Vector3(0, 10, 0)), c.clone());
-}
+function fieldCenter(fi, v = new THREE.Vector3()) { fieldObjs[fi].g.getWorldPosition(v); const o = new THREE.Vector3(v.x, 0, v.z).normalize().multiplyScalar(18); v.add(o); v.y += 64; return v; }
+function phaseCenter(ph, v) { return ph.kind === 'climax' ? fieldCenter(ph.field, v) : formCenter(ph.idx, v); }
+function phaseNode(ph, v) { return ph.kind === 'climax' ? fieldObjs[ph.field].g.getWorldPosition(v) : shaktiWorld(ph.idx, v); }
+function focusAt(c) { const out = new THREE.Vector3(c.x, 0, c.z).normalize(); flyTo(c.clone().add(out.multiplyScalar(128)).add(new THREE.Vector3(0, 6, 0)), c.clone().add(new THREE.Vector3(0, -10, 0))); }
+function focusShakti(i) { focusAt(formCenter(i)); }
+function focusCurrent() { if (chain) focusAt(phaseCenter(chain.phases[chain.i], new THREE.Vector3())); else if (state.selectedShakti !== null) focusShakti(state.selectedShakti); }
 let fly = null;
 function flyTo(pos, target) { fly = { p0: camera.position.clone(), t0: controls.target.clone(), p1: pos, t1: target, s: clock.elapsedTime }; }
 function setMorph(e) { state.morph = e; $('#morph').value = e; palaceRoot.scale.y = Math.max(e, 0.004); for (const o of lifted) o.position.y = o.userData.baseY * e; }
 
+// ------------------------------------------------------------------ Human Maṇḍala mode
+const human = createHuman({ makePoints, glowSprite, makeLabel, lineMat, setFade, state });
+let camStore = { palace: null, human: { pos: human.home.pos.clone(), target: human.home.target.clone() } };
+function setMode(m) {
+  if (m === state.mode) return; camStore[state.mode] = { pos: camera.position.clone(), target: controls.target.clone() };
+  state.mode = m; fly = null; const c = camStore[m] || { pos: HOME.pos.clone(), target: HOME.target.clone() }; camera.position.copy(c.pos); controls.target.copy(c.target); controls.update();
+  renderPass.scene = m === 'human' ? human.scene : scene; controls.minDistance = m === 'human' ? 8 : 20;
+  document.body.classList.toggle('human', m === 'human');
+  document.querySelectorAll('#tabs [data-mode]').forEach((b) => b.classList.toggle('active', b.dataset.mode === m));
+  if (m === 'human') { showHumanInfo('intro'); tummoText(); } else showOverview();
+}
+function showHumanInfo(key, extra = '') { const H = HUMAN_INFO[key]; const h = HUMAN_INFO;
+  $('#info').innerHTML = `<h2>${key === 'intro' ? 'The Human Maṇḍala — Three Kāyas' : H.t}</h2>${extra}
+   ${key === 'intro' ? `<p>${h.intro.p}</p>${ex(h.intro, 'Imagined voice & references ▸')}` : ex(H, 'Explain ▸', true)}
+   <label class="kt"><input type="checkbox" id="kayaT" ${humanKayas ? 'checked' : ''}/> Show the three-kāya map (OṂ · ĀḤ · HŪṂ)</label>
+   <div class="rh">Parts of the figure</div>${['uma', 'roma', 'kyangma', 'wheels', 'drops', 'kati', 'kayas'].map((k) => ex(h[k])).join('')}
+   <div class="note small">${PRACTICE_NOTE}</div>${key !== 'intro' ? '<button class="btn" id="hBack">← Overview</button>' : ''}`;
+  $('#kayaT').onchange = (e) => { humanKayas = e.target.checked; human.setKayas(humanKayas); };
+  if ($('#hBack')) $('#hBack').onclick = () => showHumanInfo('intro');
+}
+let humanKayas = true;
+const tummoBox = $('#tummoButtons');
+TUMMO_STEPS.forEach((s, i) => { const b = document.createElement('button'); b.className = 'stage tstep'; b.dataset.step = i; b.style.setProperty('--c', s.key === 'phowa' ? '#fff6d0' : `hsl(${20 + i * 22},90%,60%)`);
+  b.innerHTML = `<span class="dot">${s.key === 'phowa' ? '⇡' : i + 1}</span><span class="t">${s.t.replace(/^\d+ · /, '')}</span>`; b.onclick = () => setTummo(i); tummoBox.appendChild(b); });
+{ const b = document.createElement('button'); b.className = 'stage reset'; b.textContent = '↺ Reset figure'; b.onclick = () => setTummo(-1); tummoBox.appendChild(b); }
+function setTummo(i) { state.tummoStep = i; human.setStep(i, clock.elapsedTime); tummoText(); }
+function tummoText() { const i = state.tummoStep; document.querySelectorAll('.tstep').forEach((b) => b.classList.toggle('active', +b.dataset.step === i));
+  if (i < 0) { $('#tummoText').innerHTML = `<b>Choose a step.</b> Each click shows one stage of the inner-fire (tummo) sequence on the holographic body.<div class="note small">${PRACTICE_NOTE}</div>`; return; }
+  const s = TUMMO_STEPS[i]; $('#tummoText').innerHTML = `<b>${s.t}</b><ul class="inst">${s.inst.map((x) => `<li>${x}</li>`).join('')}</ul>${ex(s, 'Explain · metaphor · references ▸')}<div class="note small">Educational overview only — practised traditionally only with empowerment and a qualified teacher.</div>`; }
+
+// ------------------------------------------------------------------ Purpose & References overlays
+function openOverlay(kind) { const o = $('#overlay'); o.style.display = 'grid'; state.overlay = kind;
+  if (kind === 'purpose') $('#ovBody').innerHTML = `<h2>The Purpose of Kālacakra</h2><div class="sub2">An imagined dialogue between His Holiness the Dalai Lama and Longchen Rabjam, offered to future liberated beings</div>
+    <div class="note">${DIALOGUE_NOTE}</div>
+    ${DIALOGUE.map((d, k) => `<details class="ex dlg"${k === 0 ? ' open' : ''}><summary>${d.t}</summary>${d.turns.map(([w, x]) => `<p class="turn ${w}"><b>${w === 'DL' ? 'Dalai Lama (imagined)' : 'Longchenpa (imagined)'}:</b> ${x}</p>`).join('')}${d.r && d.r.length ? `<div class="rh">Further reading</div><ul class="refs">${refsHTML(d.r)}</ul>` : ''}</details>`).join('')}`;
+  else $('#ovBody').innerHTML = `<h2>References</h2><div class="sub2">Real published works and pages only. Links were checked when this page was built; entries without a link are cited without one rather than guessed.</div>
+    <ul class="refs big">${Object.values(REFS).map((r) => r.url ? `<li><a href="${r.url}" target="_blank" rel="noopener">${r.cite}</a></li>` : `<li>${r.cite}</li>`).join('')}</ul>
+    <div class="note small">${VOICE_NOTE}<br>${DIALOGUE_NOTE}<br>${PRACTICE_NOTE}</div>`;
+}
+$('#ovClose').onclick = () => { $('#overlay').style.display = 'none'; state.overlay = null; };
+$('#overlay').addEventListener('click', (e) => { if (e.target.id === 'overlay') $('#ovClose').click(); });
+document.querySelectorAll('#tabs [data-mode]').forEach((b) => b.onclick = () => setMode(b.dataset.mode));
+document.querySelectorAll('#tabs [data-ov]').forEach((b) => b.onclick = () => openOverlay(b.dataset.ov));
+
 // picking
 const ray = new THREE.Raycaster(); const mouse = new THREE.Vector2(); let down = null; const tip = $('#tip');
 function pick(ev) { mouse.set(ev.clientX / innerWidth * 2 - 1, -(ev.clientY / innerHeight) * 2 + 1); ray.setFromCamera(mouse, camera);
-  const vis = pickables.concat(blissShaktiSprites).filter((o) => o.visible && o.material.opacity > 0.05); const h = ray.intersectObjects(vis, false); return h.length ? h[0].object : null; }
+  const src = state.mode === 'human' ? human.pickables : pickables.concat(blissShaktiSprites, extraPicks);
+  const vis = src.filter((o) => { let v = o.visible; o.traverseAncestors((a) => { if (!a.visible) v = false; }); return v && (o.material.opacity === undefined || o.material.opacity > 0.05); }); const h = ray.intersectObjects(vis, false); return h.length ? h[0].object : null; }
 function describe(o) { const u = o.userData;
-  if (u.type === 'shakti') { const s = D.SHAKTIS[u.idx]; return `<span class="b">${s.bija}</span><b>${s.name}</b> — ${D.FIELDS[s.field].name}: ${s.formName}`; }
+  if (u.type === 'shakti') { const s = D.SHAKTIS[u.idx]; return `<span class="b">${s.bija}</span><b>${s.name}</b> — ${D.FIELDS[s.field].name}: ${s.formName} · click to play its thread`; }
   if (u.type === 'field') { const F = D.FIELDS[u.fi]; return `<b style="color:${F.color}">${F.name} field</b> ${F.skt} — click to isolate`; }
   if (u.type === 'matrika') { const m = D.MATRIKAS[u.k]; return `<span class="b">${m.skt}</span><b>${m.name}</b> — Aṣṭamātṛkā`; }
   if (u.type === 'family') { const f = D.FAMILIES[u.k]; return `<b style="color:${f.color}">${f.buddha}</b> — ${f.name} (${f.dir})`; }
   if (u.type === 'planet') { const p = D.PLANETS[u.k]; return `<span class="b">${p.skt}</span><b>${p.name}</b> — ${D.FAMILIES[p.fam].name}`; }
   if (u.type === 'star') return `★ Nakshatra <b>${D.NAKSHATRAS[u.k]}</b>`;
   if (u.type === 'bliss') return `<b style="color:${u.color}">${u.name}</b> — one of the eight shaktis of the Great Bliss lotus`;
+  if (u.type === 'level') { const L = D.LEVELS.find((x) => x.key === u.key); return `<b>${L.name}</b> — click for explanation`; }
+  if (u.type === 'disk') { const Dk = D.DISKS.find((x) => x.key === u.key); return `<b>${Dk.name}</b> — click for explanation`; }
+  if (u.type === 'deities') return '<b>Kālacakra & Viśvamātā</b> — click for explanation';
+  if (u.type === 'bindu') return '<b>Bindu</b> — the indestructible drop · click for explanation';
+  if (u.type === 'h_wheel') return `<b>${u.name}</b>`;
+  if (u.type && u.type.startsWith('h_')) { const H = HUMAN_INFO[u.type.slice(2)]; return H ? `<b>${H.t}</b>` : ''; }
   return ''; }
 canvas.addEventListener('pointermove', (ev) => {
   const o = pick(ev); state.hoveredShakti = o && o.userData.type === 'shakti' ? o.userData.idx : null;
@@ -530,15 +709,20 @@ canvas.addEventListener('pointerleave', () => { state.hoveredShakti = null; tip.
 canvas.addEventListener('pointerdown', (ev) => { down = [ev.clientX, ev.clientY]; });
 canvas.addEventListener('pointerup', (ev) => {
   if (!down || Math.hypot(ev.clientX - down[0], ev.clientY - down[1]) > 5) return; const o = pick(ev); if (!o) return; const u = o.userData;
+  if (state.mode === 'human') { if (u.type === 'h_wheel') showHumanInfo('wheels', `<div class="muted">${u.name}</div>`); else if (u.type) showHumanInfo(u.type.slice(2)); return; }
   if (u.type === 'shakti') selectShakti(u.idx);
   else if (u.type === 'field') selectField(state.field === u.fi ? null : u.fi);
   else if (u.type === 'matrika') { const m = D.MATRIKAS[u.k]; const F = D.FIELDS.find((f) => f.matrika === u.k);
-    showMisc(`<h2 style="color:${m.color}">${m.name} <span style="font-family:${DEVA}">${m.skt}</span></h2><p>One of the Aṣṭamātṛkā, the eight mothers — Śaiva-Śākta lineage held inside the Buddhist mandala frame.</p><p class="muted">Paired here (interpretively) with the <b style="color:${F.color}">${F.name}</b> field.</p>`); }
+    showMisc(`<h2 style="color:${m.color}">${m.name} <span style="font-family:${DEVA}">${m.skt}</span></h2><p>One of the Aṣṭamātṛkā, the eight mothers — Śaiva-Śākta lineage held inside the Buddhist mandala frame.</p><p class="muted">Paired here (interpretively) with the <b style="color:${F.color}">${F.name}</b> field.</p>${ex(EXPLAIN.matrikas, null, true)}`); }
   else if (u.type === 'family') { const f = D.FAMILIES[u.k]; const ps = D.PLANETS.filter((p) => p.fam === u.k).map((p) => p.name).join(', ');
-    showMisc(`<h2 style="color:${f.color}">${f.buddha}</h2><p>${f.name} · ${f.dir} · ${f.dakini}</p><p class="muted">Planets in this visualization: ${ps} (interpretive grouping).</p>`); }
-  else if (u.type === 'planet') { const p = D.PLANETS[u.k]; showMisc(`<h2 style="color:${p.color}">${p.name} <span style="font-family:${DEVA}">${p.skt}</span></h2><p>Grouped with the ${D.FAMILIES[p.fam].name} (interpretive).</p><p class="muted">Kālacakra astronomy counts Rāhu and Kālāgni among the planets.</p>`); }
-  else if (u.type === 'bliss') showMisc(`<h2 style="color:${u.color}">${u.name}</h2><p>One of the eight shaktis on the petals of the Great Bliss lotus, surrounding Kālacakra and Viśvamātā.</p>`);
+    showMisc(`<h2 style="color:${f.color}">${f.buddha}</h2><p>${f.name} · ${f.dir} · ${f.dakini}</p><p class="muted">Planets in this visualization: ${ps} (interpretive grouping).</p>${ex(EXPLAIN.cascade)}`); }
+  else if (u.type === 'planet') { const p = D.PLANETS[u.k]; showMisc(`<h2 style="color:${p.color}">${p.name} <span style="font-family:${DEVA}">${p.skt}</span></h2><p>Grouped with the ${D.FAMILIES[p.fam].name} (interpretive).</p><p class="muted">Kālacakra astronomy counts Rāhu and Kālāgni among the planets.</p>${ex(EXPLAIN.cascade)}`); }
+  else if (u.type === 'bliss') showMisc(`<h2 style="color:${u.color}">${u.name}</h2><p>One of the eight shaktis on the petals of the Great Bliss lotus, surrounding Kālacakra and Viśvamātā.</p>${ex(EXPLAIN.blissShaktis, null, true)}`);
   else if (u.type === 'star') showMisc(`<h2>★ ${D.NAKSHATRAS[u.k]}</h2><p>One of the 28 lunar mansions (incl. Abhijit).</p>`);
+  else if (u.type === 'level') { const L = D.LEVELS.find((x) => x.key === u.key); showMisc(`<h2 style="color:${L.color}">${L.name} <span style="font-family:${DEVA}">${L.skt}</span></h2><div class="muted">${L.w}×${L.w} hasta</div>${ex(LEVEL_EXPLAIN[L.key], 'Explain ▸', true)}`); }
+  else if (u.type === 'disk') { const Dk = D.DISKS.find((x) => x.key === u.key); showMisc(`<h2 style="color:${Dk.color}">${Dk.name} <span style="font-family:${DEVA}">${Dk.skt}</span></h2>${ex(DISK_EXPLAIN[Dk.key], 'Explain ▸', true)}`); }
+  else if (u.type === 'deities') showMisc(`<h2>Kālacakra & Viśvamātā</h2>${ex(EXPLAIN.deities, 'Explain ▸', true)}${ex(EXPLAIN.blissShaktis)}`);
+  else if (u.type === 'bindu') showMisc(`<h2>The bindu</h2>${ex(EXPLAIN.bindu, 'Explain ▸', true)}`);
 });
 addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); composer.setSize(innerWidth, innerHeight); updatePix(); });
 
@@ -548,7 +732,7 @@ const tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3(), tmp3 = new THREE.Ve
 const O = { x: 0, y: 0, z: 0, s: 1, w: 0, hue: -1 }; const hc = new THREE.Color(), wc = new THREE.Color(1, 1, 1), fc = new THREE.Color();
 const levelVis = [1, 1, 1, 1, 1]; let darkness = 0, clearAmt = 0, bloomAmt = 0, eclipseAmt = 0;
 const lerpK = (dt, k = 2.2) => 1 - Math.exp(-dt * k);
-function absorbedFieldFade(fi) { const st = state.stage; if (st === 0 || st === 7) return 1;
+function absorbedFieldFade(fi) { const st = state.stage; if (st === 0 || st === 7 || st === 8) return 1;
   const at = { earth: 1, water: 2, fire: 3, air: 4, ether: 5, desire: 5, mind: 6, light: 99 }[D.FIELDS[fi].key]; return st >= at ? 0.1 : 1; }
 function bez(a, b, lift, u, out) { const m = tmp3.copy(a).add(b).multiplyScalar(0.5); m.y += lift; const iu = 1 - u;
   out.set(iu * iu * a.x + 2 * iu * u * m.x + u * u * b.x, iu * iu * a.y + 2 * iu * u * m.y + u * u * b.y, iu * iu * a.z + 2 * iu * u * m.z + u * u * b.z); return out; }
@@ -559,17 +743,20 @@ function animate() {
   for (const m of allPointMats) m.uniforms.uTime.value = t;
   if (fly) { const u = Math.min(1, (t - fly.s) / 1.6), e = u * u * (3 - 2 * u); camera.position.lerpVectors(fly.p0, fly.p1, e); controls.target.lerpVectors(fly.t0, fly.t1, e); if (u >= 1) fly = null; }
   controls.update();
+  if (state.mode === 'human') { human.update(t, dt); bloom.strength = 0.75; bloom.radius = 0.5; labels.forEach((l) => { if (!state.labels) l.visible = false; }); composer.render(); return; }
+  // phowa progress: only after the phowa button was clicked (stage 8), eased over PHOWA_DUR seconds
+  const phT = st === 8 ? Math.min(1, (t - stageT0) / PHOWA_DUR) : 0, phE = phT * phT * (3 - 2 * phT); state.phowa = phT;
 
   // --- stage targets (only change when a stage button is clicked)
-  const lvT = [st < 1, st < 2, st < 3, st < 4, st < 5].map((v) => (st === 7 ? 0.55 : v ? 1 : 0));
+  const lvT = [st < 1, st < 2, st < 3, st < 4, st < 5].map((v) => (st === 8 ? 0.55 * (1 - phE) : st === 7 ? 0.55 : v ? 1 : 0));
   for (let i = 0; i < 5; i++) { levelVis[i] += (lvT[i] - levelVis[i]) * k; setFade(levelGroups[i], levelVis[i]); }
-  setFade(cubeOfTime, st === 0 ? 1 : st === 7 ? 0.6 : 0.25); if (!$('#cube').checked) cubeOfTime.visible = false;
-  diskObjs.forEach((d, i) => { d.target = st === 7 ? 0 : (i < 5 ? st >= i + 1 : st >= 6) ? 1 : 0; d.collapse += (d.target - d.collapse) * lerpK(dt, 1.4);
+  setFade(cubeOfTime, st === 0 ? 1 : st === 7 ? 0.6 : st === 8 ? 0.6 * (1 - phE) : 0.25); if (!$('#cube').checked) cubeOfTime.visible = false;
+  diskObjs.forEach((d, i) => { d.target = st === 7 ? 0 : st === 8 ? 1 : (i < 5 ? st >= i + 1 : st >= 6) ? 1 : 0; d.collapse += (d.target - d.collapse) * lerpK(dt, 1.4);
     d.p.material.uniforms.uCollapse.value = d.collapse; d.outline.material.opacity = 0.9 * (1 - d.collapse); d.outline.scale.setScalar(Math.max(0.001, 1 - d.collapse));
     d.lab.material.opacity = 0.95 * (1 - d.collapse); d.lab.visible = state.labels && d.collapse < 0.95; });
   darkness += ((st === 5 ? 1 : st === 6 ? 0.6 : 0) - darkness) * k;
-  clearAmt += ((st === 6 ? 1 : st === 7 ? 0.25 : 0) - clearAmt) * k;
-  bloomAmt += ((st === 7 ? 1 : 0) - bloomAmt) * lerpK(dt, 1.2);
+  clearAmt += ((st === 6 ? 1 : st === 7 ? 0.25 : st === 8 ? 0.25 + 0.45 * phE : 0) - clearAmt) * k;
+  bloomAmt += ((st === 7 ? 1 : st === 8 ? 1 - phE : 0) - bloomAmt) * lerpK(dt, 1.2);
   eclipseAmt += ((st === 5 ? 1 : 0) - eclipseAmt) * k;
   scene.background.copy(BG).lerp(new THREE.Color('#0b1430'), clearAmt * 0.7).multiplyScalar(1 - darkness * 0.6 * (1 - clearAmt));
 
@@ -584,6 +771,22 @@ function animate() {
   eclipseDisk.lookAt(camera.position); eclipseDisk.position.copy(tmp.copy(camera.position).sub(binduGroup.getWorldPosition(tmp2)).normalize().multiplyScalar(6));
   clearLight.material.opacity = clearAmt * 0.32; clearLight.visible = clearAmt > 0.01; clearLight.scale.setScalar(380 + 140 * clearAmt + 10 * Math.sin(t * 0.5));
   binduGroup.scale.set(1, 1, 1);
+  binduGroup.position.y = D.BINDU_Y * state.morph + phE * PHOWA_RISE; // phowa: the bindu leaves through the roof tip and beyond
+
+  // --- phowa: palace & body dissolve into rising light; a column of light along the central axis
+  phowaDust.visible = phT > 0.001; phowaBeam.visible = phT > 0.001;
+  if (phowaDust.visible) { const a = phowaDust.geometry.attributes, P = a.position.array, C = a.aColor.array, S = a.aSize.array;
+    phowaDust.material.uniforms.uOpacity.value = Math.min(1, phT * 6) * (1 - THREE.MathUtils.smoothstep(phT, 0.82, 1)) * 0.95;
+    for (let i = 0; i < PH_N; i++) { const d = Math.max(0, Math.min(1, phE * 1.5 - phowaDelay[i])); const x0 = phowaBase[i * 3], y0 = phowaBase[i * 3 + 1], z0 = phowaBase[i * 3 + 2];
+      const sw = d * d * 3 + i * 0.01; const conv = 1 - d * 0.85; const cs = Math.cos(sw * 0.6), sn = Math.sin(sw * 0.6);
+      P[i * 3] = (x0 * cs - z0 * sn) * conv; P[i * 3 + 1] = y0 + d * d * (220 + (i % 7) * 30); P[i * 3 + 2] = (x0 * sn + z0 * cs) * conv;
+      const w = d; C[i * 3] = phowaCol[i * 3] * (1 - w) + w; C[i * 3 + 1] = phowaCol[i * 3 + 1] * (1 - w) + w * 0.95; C[i * 3 + 2] = phowaCol[i * 3 + 2] * (1 - w) + w * 0.8; S[i] = 0.7 + d * 1.4; }
+    a.position.needsUpdate = a.aColor.needsUpdate = a.aSize.needsUpdate = true;
+    const b = phowaBeam.geometry.attributes, BP = b.position.array, BC = b.aColor.array, BS = b.aSize.array, BR = b.aRand.array; const by = binduGroup.position.y;
+    phowaBeam.material.uniforms.uOpacity.value = Math.min(1, phT * 5) * (1 - phT * 0.6);
+    for (let i = 0; i < BEAM_N; i++) { const u = (BR[i] + t * 0.22) % 1; const top = by + 60; const y = -80 * state.morph + u * (top + 80 * state.morph); const rr = 1.2 + 5 * Math.pow(Math.abs(Math.sin(u * 13 + BR[i] * 40)), 3) * (1 - u);
+      const th = BR[i] * 300 + t * 2; BP[i * 3] = Math.cos(th) * rr; BP[i * 3 + 1] = y; BP[i * 3 + 2] = Math.sin(th) * rr; const wv = u; BC[i * 3] = 1; BC[i * 3 + 1] = 0.85 + 0.15 * wv; BC[i * 3 + 2] = 0.45 + 0.5 * wv; BS[i] = 0.6 + 1.2 * (1 - Math.abs(u - 0.6)); }
+    b.position.needsUpdate = b.aColor.needsUpdate = b.aSize.needsUpdate = true; }
 
   // --- inner signs (mirage, smoke, fireflies, lamp) for stages 1–4
   { const a = signs.geometry.attributes, P = a.position.array, C = a.aColor.array, S = a.aSize.array; const on = st >= 1 && st <= 4 ? 1 : 0;
@@ -605,19 +808,22 @@ function animate() {
     bloomRays.geometry.attributes.position.needsUpdate = true; bloomRays.material.uniforms.uOpacity.value = bloomAmt * 0.7; }
 
   // --- fields: stage absorption × selection
-  fieldObjs.forEach((fo, fi) => { const sel = state.field === null || state.field === fi ? 1 : 0.28; const target = absorbedFieldFade(fi) * sel * (1 - darkness * 0.8) + (st === 6 && fo.F.key === 'light' ? 0.6 : 0);
+  fieldObjs.forEach((fo, fi) => { const sel = state.field === null || state.field === fi ? 1 : 0.28; const target = (absorbedFieldFade(fi) * sel * (1 - darkness * 0.8) + (st === 6 && fo.F.key === 'light' ? 0.6 : 0)) * (1 - phE * 0.9);
     fo.fade += (Math.min(1, target) - fo.fade) * k; setFade(fo.g, fo.fade); fo.core.scale.setScalar(26 + 3 * Math.sin(t * 1.3 + fi)); });
   // orbit loop particles (flowing, closed, equal)
   { const a = loop.geometry.attributes, P = a.position.array, C = a.aColor.array, S = a.aSize.array, R = a.aRand.array; const y0 = FIELD_Y * state.morph;
     for (let i = 0; i < loopN; i++) { const u = (i / loopN + t * 0.012 + R[i] * 0.002) % 1; const ang = u * TAU; const w = Math.sin(ang * 8 * 3 + (i % 3) * 2.1 + t) * 10;
       const r = FIELD_R + w + (R[i] - .5) * 6; P[i * 3] = Math.sin(ang) * r; P[i * 3 + 1] = y0 + Math.cos(ang * 24 + (i % 3) * 2.1 + t * 1.3) * 5; P[i * 3 + 2] = Math.cos(ang) * r;
       const fpos = u * 8, f0 = Math.floor(fpos) % 8, f1 = (f0 + 1) % 8, m = fpos - Math.floor(fpos); fc.copy(fieldCols[f0]).lerp(fieldCols[f1], m);
-      const fade = Math.min(fieldObjs[f0].fade, 1) * (1 - m) + Math.min(fieldObjs[f1].fade, 1) * m; C[i * 3] = fc.r * fade; C[i * 3 + 1] = fc.g * fade; C[i * 3 + 2] = fc.b * fade; S[i] = 0.6 + R[i]; }
+      let fade = Math.min(fieldObjs[f0].fade, 1) * (1 - m) + Math.min(fieldObjs[f1].fade, 1) * m;
+      if (phT > 0) { const water = f0 === 1; const d = Math.max(0, Math.min(1, phE * 1.35 - (water ? 0 : 0.25) - R[i] * 0.1)); const conv = 1 - d * 0.75;
+        P[i * 3] *= conv; P[i * 3 + 2] *= conv; P[i * 3 + 1] += d * d * (260 + R[i] * 300); fade = Math.max(fade, d * (water ? 1.5 : 0.9)) * (1 - THREE.MathUtils.smoothstep(phT, 0.85, 1) * 0.8); fc.lerp(wc, d * (water ? 0.35 : 0.6)); }
+      C[i * 3] = fc.r * fade; C[i * 3 + 1] = fc.g * fade; C[i * 3 + 2] = fc.b * fade; S[i] = 0.6 + R[i]; }
     a.position.needsUpdate = a.aColor.needsUpdate = a.aSize.needsUpdate = true; }
   matrikaGroup.rotation.y = 0; helix.rotation.y = t * 0.02;
-  setFade(matrikaGroup, Math.max(0.12, 1 - darkness * 0.85) * (st >= 1 && st <= 6 ? 0.55 : 1));
-  famNodes.forEach((n, i) => setFade(n.g, (1 - darkness * 0.7) * (cascadeIdx !== null && D.SHAKTIS[cascadeIdx].fam === i ? 1 : 0.7)));
-  planetNodes.forEach((n) => { setFade(n.g, 1 - darkness * 0.7); n.s.scale.setScalar(20); });
+  setFade(matrikaGroup, Math.max(0.12, 1 - darkness * 0.85) * (st >= 1 && st <= 6 ? 0.55 : 1) * (1 - phE * 0.9));
+  famNodes.forEach((n, i) => setFade(n.g, (1 - darkness * 0.7) * (1 - phE * 0.8) * (cascadeIdx !== null && D.SHAKTIS[cascadeIdx].fam === i ? 1 : 0.7)));
+  planetNodes.forEach((n) => { setFade(n.g, (1 - darkness * 0.7) * (1 - phE * 0.8)); n.s.scale.setScalar(20); });
   starNodes.forEach((s, i) => { s.material.opacity = 0.8 * (1 - darkness * 0.6) * (0.7 + 0.3 * Math.sin(t * 1.7 + i)); s.scale.setScalar(12); s.userData.lab.visible = false; });
   labels.forEach((l) => { if (!state.labels) l.visible = false; });
 
@@ -640,35 +846,58 @@ function animate() {
     a.position.needsUpdate = a.aColor.needsUpdate = a.aSize.needsUpdate = true;
   } else { cascade.visible = false; dakiniSprite.material.opacity = 0; if (dakiniLabel) dakiniLabel.visible = false; }
 
-  // --- manifestation form (hover > selected)
-  const want = state.hoveredShakti ?? state.selectedShakti;
+  // --- chain auto-progress: only while a click-started chain is playing
+  if (chain && chain.playing && t - chain.t0 > PH_DUR) { if (chain.i < chain.phases.length - 1) goPhase(chain.i + 1); else { chain.playing = false; renderChainBar(); } }
+  // --- manifestation form: chain phase > hover preview (when idle)
+  let cur = null;
+  if (chain) { const ph = chain.phases[chain.i]; cur = { key: `c${chain.id}_${chain.i}`, form: ph.form, field: ph.field, ph, node: ph.kind === 'climax' ? null : ph.idx }; }
+  else if (state.hoveredShakti !== null) { const s = D.SHAKTIS[state.hoveredShakti]; cur = { key: 'h' + s.idx, form: s.form, field: s.field, ph: { kind: 'shakti', idx: s.idx, field: s.field, name: s.name, form: s.form }, node: s.idx }; }
+  const want = cur && cur.node !== null ? cur.node : null;
   const a = manifest.geometry.attributes, P = a.position.array, C = a.aColor.array, S = a.aSize.array;
-  if (want !== manActive) { manFrom.set(P); manT0 = t; manActive = want; }
-  const m = Math.min(1, (t - manT0) / 1.3), em = m * m * (3 - 2 * m);
+  if ((cur ? cur.key : null) !== manKey) { manFrom.set(P); manFromC.set(C); manT0 = t; manFirst = manAlpha < 0.3; manKey = cur ? cur.key : null; cenFrom.copy(cenCur);
+    if (cur) { manActive = cur; if (manFirst) { phaseCenter(cur.ph, cenFrom); } } }
+  if (!cur) manActive = null;
+  const m = Math.min(1, (t - manT0) / MORPH_DUR), em = m * m * (3 - 2 * m);
   manAlpha += ((manActive !== null ? 1 : 0) - manAlpha) * lerpK(dt, 3); manifest.visible = manAlpha > 0.01; manifest.material.uniforms.uOpacity.value = manAlpha;
   if (manifest.visible && manActive !== null) {
-    const s = D.SHAKTIS[manActive]; const f = FORMS[s.form]; let ctx = manCtx.get(s.form); if (ctx === undefined && INIT[s.form]) { ctx = INIT[s.form](MAN_N); manCtx.set(s.form, ctx); }
-    const cen = formCenter(manActive, tmp2); const node = shaktiWorld(manActive, new THREE.Vector3()); const base = col(D.FIELDS[s.field].color); const gold = col(GOLD);
-    const fade = fieldObjs[s.field].fade; const sc = FORM_SIZE; const tl = TILT[s.form] || 0, ct = Math.cos(tl), stt = Math.sin(tl); const fa = s.field / 8 * TAU, ca = Math.cos(fa), sa = Math.sin(fa);
+    const ph = manActive.ph, form = manActive.form; const f = FORMS[form]; let ctx = manCtx.get(form); if (ctx === undefined && INIT[form]) { ctx = INIT[form](MAN_N); manCtx.set(form, ctx); }
+    const tgt = phaseCenter(ph, tmp2); cenCur.lerpVectors(cenFrom, tgt, em);
+    const node = phaseNode(ph, new THREE.Vector3()); const base = col(D.FIELDS[manActive.field].color); const gold = col(GOLD);
+    const fade = Math.max(fieldObjs[manActive.field].fade, chain ? 0.8 : 0); const sc = FORM_SIZE; const tl = TILT[form] || 0, ct = Math.cos(tl), stt = Math.sin(tl); const fa = manActive.field / 8 * TAU, ca = Math.cos(fa), sa = Math.sin(fa);
     for (let i = 0; i < MAN_N; i++) { O.s = 1; O.w = 0; O.hue = -1; f(i, MAN_N, MR, t, O, ctx);
-      // bija-coloured particle seed state around the node
-      const sx = node.x + (MR.a[i] - .5) * 7, sy = node.y + (MR.b[i] - .5) * 7, sz = node.z + (MR.c[i] - .5) * 7;
-      const ly = O.y * ct - O.z * stt, lz = O.y * stt + O.z * ct; const tx = cen.x + (O.x * ca + lz * sa) * sc, ty = cen.y + ly * sc, tz = cen.z + (-O.x * sa + lz * ca) * sc;
-      const fx = manFrom[i * 3], fy = manFrom[i * 3 + 1], fz = manFrom[i * 3 + 2];
-      // dissolve: from previous positions → seed (first half) → form (second half)
-      const u1 = Math.min(1, em * 2), u2 = Math.max(0, em * 2 - 1);
-      let x = fx + (sx - fx) * u1, y = fy + (sy - fy) * u1, z = fz + (sz - fz) * u1; x += (tx - x) * u2; y += (ty - y) * u2; z += (tz - z) * u2;
+      const ly = O.y * ct - O.z * stt, lz = O.y * stt + O.z * ct; const tx = cenCur.x + (O.x * ca + lz * sa) * sc, ty = cenCur.y + ly * sc, tz = cenCur.z + (-O.x * sa + lz * ca) * sc;
+      const fx = manFrom[i * 3], fy = manFrom[i * 3 + 1], fz = manFrom[i * 3 + 2]; let x, y, z, u2;
+      if (manFirst) { // dissolve from the bija node: seed (first half) → form (second half)
+        const sx = node.x + (MR.a[i] - .5) * 7, sy = node.y + (MR.b[i] - .5) * 7, sz = node.z + (MR.c[i] - .5) * 7; const u1 = Math.min(1, em * 2); u2 = Math.max(0, em * 2 - 1);
+        x = fx + (sx - fx) * u1; y = fy + (sy - fy) * u1; z = fz + (sz - fz) * u1; x += (tx - x) * u2; y += (ty - y) * u2; z += (tz - z) * u2;
+      } else { // phase → phase: particles flow along a swirling arc into the next form
+        const arc = Math.sin(em * Math.PI); x = fx + (tx - fx) * em + (MR.d[i] - .5) * 26 * arc; y = fy + (ty - fy) * em + (MR.a[i] - .3) * 18 * arc; z = fz + (tz - fz) * em + (MR.c[i] - .5) * 26 * arc; u2 = 1; }
       P[i * 3] = x; P[i * 3 + 1] = y; P[i * 3 + 2] = z;
       if (O.hue >= 0) hc.setHSL(O.hue % 1, 0.9, 0.55); else hc.copy(base); hc.lerp(wc, Math.min(1, Math.max(0, O.w)) * 0.7); hc.lerp(gold, 1 - u2);
-      const br = 0.95 * Math.max(0.25, fade); C[i * 3] = hc.r * br; C[i * 3 + 1] = hc.g * br; C[i * 3 + 2] = hc.b * br; S[i] = Math.max(0, O.s) * (1.0 + 1.2 * (1 - u2)); }
+      const br = 0.95 * Math.max(0.25, fade); let r0 = hc.r * br, g0 = hc.g * br, b0 = hc.b * br;
+      if (!manFirst) { r0 = manFromC[i * 3] + (r0 - manFromC[i * 3]) * em; g0 = manFromC[i * 3 + 1] + (g0 - manFromC[i * 3 + 1]) * em; b0 = manFromC[i * 3 + 2] + (b0 - manFromC[i * 3 + 2]) * em; }
+      C[i * 3] = r0; C[i * 3 + 1] = g0; C[i * 3 + 2] = b0; S[i] = Math.max(0, O.s) * (1.0 + 1.2 * (1 - u2)); }
     a.position.needsUpdate = a.aColor.needsUpdate = a.aSize.needsUpdate = true;
   }
   { const show = manifest.visible && manActive !== null; bubble.visible = bubbleRim.visible = show;
-    if (show) { const c = formCenter(manActive, tmp); const sz = FORM_SIZE * 2.9; bubble.position.copy(c); bubble.scale.setScalar(sz); bubbleRim.position.copy(c); bubbleRim.scale.setScalar(sz);
-      bubble.material.opacity = manAlpha; bubbleRim.material.color.set(D.FIELDS[D.SHAKTIS[manActive].field].color); bubbleRim.material.opacity = manAlpha * 0.55;
-      if (bubbleLabelFor !== manActive) { if (bubbleLabel) scene.remove(bubbleLabel); const sk = D.SHAKTIS[manActive]; bubbleLabel = makeLabel(sk.bija + '  ' + sk.name, sk.formName, GOLD, 7.5); bubbleLabel.material.depthTest = false; bubbleLabel.renderOrder = 32; scene.add(bubbleLabel); bubbleLabelFor = manActive; }
-      bubbleLabel.position.copy(c); bubbleLabel.position.y -= FORM_SIZE * 1.18; bubbleLabel.material.opacity = manAlpha; bubbleLabel.visible = state.labels; }
+    if (show) { const c = cenCur; const sz = FORM_SIZE * 2.9; bubble.position.copy(c); bubble.scale.setScalar(sz); bubbleRim.position.copy(c); bubbleRim.scale.setScalar(sz);
+      bubble.material.opacity = manAlpha; bubbleRim.material.color.set(D.FIELDS[manActive.field].color); bubbleRim.material.opacity = manAlpha * 0.55;
+      if (bubbleLabelFor !== manKey) { if (bubbleLabel) scene.remove(bubbleLabel); const ph = manActive.ph; const sk = ph.kind === 'climax' ? null : D.SHAKTIS[ph.idx];
+        const top = chain ? (sk && ph.kind !== 'intent' ? sk.bija + '  ' : '') + ph.name : sk.bija + '  ' + sk.name; const bottom = chain ? `${D.FIELDS[ph.field].name} · phase ${chain.i + 1}/${chain.phases.length}` : sk.formName;
+        bubbleLabel = makeLabel('', top, GOLD, 5.2); const lb2 = makeLabel('', bottom, D.FIELDS[ph.field].color, 4); bubbleLabel.add(lb2); lb2.scale.set(lb2.scale.x / bubbleLabel.scale.x, lb2.scale.y / bubbleLabel.scale.y, 1); lb2.position.y = -1.0; lb2.material.depthTest = false; lb2.renderOrder = 32;
+        bubbleLabel.material.depthTest = false; bubbleLabel.renderOrder = 32; scene.add(bubbleLabel); bubbleLabelFor = manKey; }
+      bubbleLabel.position.copy(c); bubbleLabel.position.y -= FORM_SIZE * 1.12; bubbleLabel.material.opacity = manAlpha; bubbleLabel.children[0].material.opacity = manAlpha; bubbleLabel.visible = state.labels; }
     else if (bubbleLabel) bubbleLabel.visible = false; }
+  // --- chain stream: particles physically travel from the previous node into this phase (and into the next field on hand-off)
+  chainStream.visible = !!(chain && chain.i > 0);
+  if (chainStream.visible) { const ph = chain.phases[chain.i], prev = chain.phases[chain.i - 1]; const pa = phaseNode(prev, new THREE.Vector3()), pb = phaseNode(ph, new THREE.Vector3());
+    const ca2 = col(D.FIELDS[prev.field].color), cb2 = col(D.FIELDS[ph.field].color); const e = Math.min(1, (t - chain.t0) / 1.4); const handoff = ph.kind === 'handoff';
+    const sa2 = chainStream.geometry.attributes, SP = sa2.position.array, SC = sa2.aColor.array, SS = sa2.aSize.array, SR = sa2.aRand.array; chainStream.material.uniforms.uOpacity.value = handoff ? 1 : 0.75;
+    const lift2 = handoff ? 70 : 25; const n2 = handoff ? CH_N : CH_N >> 1;
+    for (let i = 0; i < CH_N; i++) { if (i >= n2) { SS[i] = 0; continue; } let u = (SR[i] + t * (handoff ? 0.3 : 0.45)) % 1; if (u > e) u = e * SR[i]; bez(pa, pb, lift2, u, tmp); const jit = (handoff ? 4 : 2) * Math.sin(u * Math.PI);
+      SP[i * 3] = tmp.x + Math.sin(i * 12.9 + t * 3) * jit; SP[i * 3 + 1] = tmp.y + Math.cos(i * 7.1 + t * 2.5) * jit; SP[i * 3 + 2] = tmp.z + Math.sin(i * 3.3 + t * 2) * jit;
+      fc.copy(ca2).lerp(cb2, u); SC[i * 3] = fc.r; SC[i * 3 + 1] = fc.g; SC[i * 3 + 2] = fc.b; SS[i] = 0.6 + 1.3 * Math.sin(u * Math.PI); }
+    sa2.position.needsUpdate = sa2.aColor.needsUpdate = sa2.aSize.needsUpdate = true; }
   // node pulse + highlight
   shaktiSprites.forEach((sp, i) => { const hl = i === want ? 1.45 : 1; sp.scale.setScalar(15 * hl * (1 + 0.05 * Math.sin(t * 2 + i))); });
 
@@ -681,7 +910,7 @@ async function boot() {
   // regenerate canvas-text textures after fonts are available
   for (const sp of shaktiSprites) { const s = D.SHAKTIS[sp.userData.idx]; sp.material.map = bijaTex(s.bija, D.FIELDS[s.field].color); sp.material.needsUpdate = true; }
   stageText(); showOverview(); setMorph(1); animate();
-  window.__app = { setStage, selectShakti, selectField, setMorph, focusShakti, flyTo, topView: () => $('#topView').click(), resetView: () => $('#resetView').click(), camera, controls, state };
+  window.__app = { setStage, selectShakti, selectField, setMorph, focusShakti, focusCurrent, flyTo, setMode, setTummo, playThread, goPhase, stopChain, openOverlay, projectShakti: (i) => { const v = shaktiWorld(i, new THREE.Vector3()).project(camera); return [(v.x + 1) / 2 * innerWidth, (1 - v.y) / 2 * innerHeight]; }, getChain: () => chain && { i: chain.i, n: chain.phases.length, playing: chain.playing, form: chain.phases[chain.i].form }, topView: () => $('#topView').click(), resetView: () => $('#resetView').click(), camera, controls, state };
   setTimeout(() => { $('#loading').style.opacity = 0; setTimeout(() => $('#loading').remove(), 1000); }, 300);
   window.__ready = true;
 }
