@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Kalachakra Mandala Palace — interactive 3D</title>
+<meta name="description" content="Interactive 3D Kalachakra mandala palace: Six Yogas dissolution, five palace floors, six elemental disks, eight elemental fields and sixty-four shaktis." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Tiro+Devanagari+Sanskrit&family=Cormorant+Garamond:wght@500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+<script type="importmap">
+{ "imports": {
+  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+} }
+</script>
+<style>
+  :root { --gold:#ffd36b; --ink:#cfd7ff; --dim:#8590c0; --panel:rgba(6,8,22,.78); --line:rgba(120,140,255,.28); }
+  * { box-sizing: border-box; }
+  html,body { margin:0; height:100%; background:#020309; color:var(--ink); font-family:Inter,system-ui,sans-serif; overflow:hidden; }
+  canvas#c { position:fixed; inset:0; width:100%; height:100%; display:block; }
+  .panel { position:fixed; background:var(--panel); border:1px solid var(--line); border-radius:12px; backdrop-filter: blur(6px); box-shadow:0 0 24px rgba(60,80,255,.15), inset 0 0 12px rgba(120,140,255,.06); }
+  h1,h2,h3 { font-family:'Cormorant Garamond',serif; font-weight:600; margin:0; color:var(--gold); letter-spacing:.02em; }
+  #yogas { top:14px; left:14px; width:262px; padding:12px 12px 10px; z-index:5; }
+  #yogas h1 { font-size:19px; }
+  #yogas .sub { font-size:11px; color:var(--dim); margin:2px 0 8px; }
+  .stage { display:flex; align-items:center; gap:9px; width:100%; margin:3px 0; padding:6px 8px; border-radius:8px; border:1px solid rgba(120,140,255,.18); background:rgba(20,24,60,.35); color:var(--ink); font:500 12.5px Inter,sans-serif; cursor:pointer; text-align:left; transition:all .25s; }
+  .stage:hover { border-color:rgba(255,211,107,.6); background:rgba(60,50,20,.35); }
+  .stage .dot { flex:0 0 22px; height:22px; border-radius:50%; display:grid; place-items:center; font-size:11px; font-weight:600; color:#020309; background:var(--c,#7c8bff); box-shadow:0 0 10px var(--c,#7c8bff); }
+  .stage .t { flex:1; }
+  .stage .t small { display:block; color:var(--dim); font-size:10.5px; font-weight:400; }
+  .stage.active { border-color:var(--gold); background:linear-gradient(90deg, rgba(255,211,107,.22), rgba(255,211,107,.04)); box-shadow:0 0 14px rgba(255,211,107,.25); }
+  .stage.active .t { color:#fff2c9; }
+  .stage.reset { justify-content:center; font-size:11.5px; color:var(--dim); padding:4px; }
+  #stageText { font-size:11.5px; line-height:1.45; color:#b9c2f0; margin-top:8px; padding-top:8px; border-top:1px solid var(--line); }
+  #stageText b { color:var(--gold); font-weight:600; }
+  #info { top:14px; right:14px; width:320px; max-height:calc(100% - 120px); overflow:auto; padding:14px; z-index:5; font-size:12.5px; line-height:1.5; }
+  #info h2 { font-size:20px; margin-bottom:4px; }
+  #info .muted { color:var(--dim); font-size:11.5px; }
+  #info .note { margin-top:10px; padding:8px 10px; border-left:2px solid var(--gold); background:rgba(255,211,107,.06); font-size:11px; color:#c8c2a8; }
+  .bija-big { font-family:'Tiro Devanagari Sanskrit','Noto Sans Devanagari',serif; font-size:54px; color:var(--gold); text-shadow:0 0 18px rgba(255,200,80,.7); line-height:1.1; cursor:pointer; }
+  .chain { display:flex; flex-direction:column; gap:4px; margin-top:8px; }
+  .chain .lnk { display:flex; gap:8px; align-items:center; padding:5px 8px; border-radius:7px; background:rgba(30,36,80,.45); border:1px solid rgba(120,140,255,.18); }
+  .chain .lnk i { width:10px; height:10px; border-radius:50%; flex:0 0 10px; box-shadow:0 0 8px currentColor; }
+  .chain .arrow { text-align:center; color:var(--dim); font-size:10px; line-height:1; }
+  .btn { display:inline-block; margin:6px 6px 0 0; padding:5px 10px; border-radius:7px; border:1px solid rgba(255,211,107,.45); background:rgba(255,211,107,.08); color:#ffe9b0; font:500 11.5px Inter,sans-serif; cursor:pointer; }
+  .btn:hover { background:rgba(255,211,107,.2); }
+  .list { display:grid; grid-template-columns:1fr 1fr; gap:4px; margin-top:8px; }
+  .list .item { padding:4px 6px; border-radius:6px; background:rgba(30,36,80,.4); cursor:pointer; font-size:11px; border:1px solid transparent; }
+  .list .item:hover { border-color:var(--gold); }
+  .list .item span { font-family:'Tiro Devanagari Sanskrit',serif; color:var(--gold); font-size:15px; margin-right:4px; }
+  #fieldbar { left:50%; transform:translateX(-50%); bottom:14px; padding:7px 9px; display:flex; gap:5px; z-index:5; flex-wrap:wrap; justify-content:center; max-width:calc(100% - 640px); min-width:420px; }
+  .chip { padding:5px 9px; border-radius:16px; border:1px solid var(--c); color:var(--ink); background:rgba(10,12,30,.6); font:500 11.5px Inter,sans-serif; cursor:pointer; box-shadow:0 0 6px color-mix(in srgb, var(--c) 40%, transparent); }
+  .chip .s { font-family:'Tiro Devanagari Sanskrit',serif; color:var(--c); margin-right:4px; }
+  .chip.active { background:color-mix(in srgb, var(--c) 28%, transparent); color:#fff; }
+  #controls { left:14px; bottom:14px; padding:10px 12px; width:262px; z-index:5; font-size:11.5px; }
+  #controls label { display:flex; align-items:center; gap:6px; color:#b9c2f0; }
+  #controls .row { display:flex; justify-content:space-between; align-items:center; margin-top:6px; }
+  input[type=range] { width:100%; accent-color:#ffd36b; }
+  #tip { position:fixed; pointer-events:none; z-index:9; padding:6px 9px; font-size:11.5px; border-radius:7px; background:rgba(5,6,18,.9); border:1px solid rgba(255,211,107,.5); color:#fff; display:none; max-width:260px; }
+  #tip .b { font-family:'Tiro Devanagari Sanskrit',serif; color:var(--gold); font-size:20px; margin-right:6px; }
+  #loading { position:fixed; inset:0; display:grid; place-items:center; z-index:20; background:#020309; color:var(--gold); font-family:'Cormorant Garamond',serif; font-size:22px; transition:opacity 1s; }
+  #err { position:fixed; bottom:4px; right:6px; color:#f77; font-size:11px; z-index:30; }
+  @media (max-width: 900px) { #info { width:240px; font-size:11px; } #fieldbar { max-width:calc(100% - 28px); bottom:150px; min-width:0; } }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="loading">Unfolding the palace of time…</div>
+
+<div id="yogas" class="panel">
+  <h1>Six Yogas · Dissolution</h1>
+  <div class="sub">Completion stage — click a stage; nothing advances by itself.</div>
+  <div id="stageButtons"></div>
+  <div id="stageText"></div>
+</div>
+
+<div id="info" class="panel"></div>
+
+<div id="fieldbar" class="panel"></div>
+
+<div id="controls" class="panel">
+  <label style="justify-content:space-between"><span>2D plan</span><b style="color:var(--gold)">Plan ↔ Palace extrusion</b><span>3D</span></label>
+  <input id="morph" type="range" min="0" max="1" step="0.01" value="1" />
+  <div class="row">
+    <label><input type="checkbox" id="labels" checked /> Labels</label>
+    <label><input type="checkbox" id="cube" checked /> Cube of time</label>
+  </div>
+  <div class="row">
+    <button class="btn" id="topView">Top view</button>
+    <button class="btn" id="resetView">Reset view</button>
+    <button class="btn" id="about">About</button>
+  </div>
+</div>
+<div id="tip"></div>
+<div id="err"></div>
+<script>window.addEventListener('error', e => { const el = document.getElementById('err'); if (el) el.textContent = 'Error: ' + e.message; });</script>
+<script type="module">
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  const loaded = document.readyState === 'complete' ? Promise.resolve() : new Promise((r) => addEventListener('load', r, { once: true }));
+  await Promise.race([loaded, wait(4000)]);
+  try { await Promise.race([Promise.all([document.fonts.load("600 64px 'Tiro Devanagari Sanskrit'", 'लं'), document.fonts.load("500 34px Inter"), document.fonts.load("600 20px 'Cormorant Garamond'")]), wait(3500)]); } catch (e) {}
+  await import('./main.js');
+</script>
+</body>
+</html>
