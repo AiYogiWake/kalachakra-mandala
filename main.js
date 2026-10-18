@@ -6,7 +6,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import * as D from './data.js';
 import { FORMS, INIT, TILT, rng } from './forms.js';
-import { EXPLAIN, STAGE_EXPLAIN, LEVEL_EXPLAIN, DISK_EXPLAIN, FIELD_EXPLAIN, HUMAN_INFO, TUMMO_STEPS, DIALOGUE, REFS, VOICE_NOTE, DIALOGUE_NOTE, PRACTICE_NOTE, shaktiNote } from './teachings.js';
+import { EXPLAIN, STAGE_EXPLAIN, LEVEL_EXPLAIN, DISK_EXPLAIN, FIELD_EXPLAIN, HUMAN_INFO, TUMMO_STEPS, DIALOGUE, REFS, VOICE_NOTE, DIALOGUE_NOTE, PRACTICE_NOTE, shaktiNote, THOGAL_STEPS, THOGAL_INTRO } from './teachings.js';
 import { shaktiChain, threadChain } from './chains.js';
 import { createHuman } from './human.js';
 
@@ -19,7 +19,7 @@ const $ = (s) => document.querySelector(s);
 const state = {
   stage: 0, binduIntensity: D.BINDU_INTENSITY[0], binduLevel: D.BINDU_INTENSITY[0],
   morph: 1, selectedShakti: null, hoveredShakti: null, field: null, labels: true,
-  mode: 'palace', tummoStep: -1, phowa: 0, chain: null,
+  mode: 'palace', tummoStep: -1, phowa: 0, chain: null, phowaT0: null, phowaPalace: 0, phowaHuman: 0, thogalStep: -1,
 };
 window.__state = state;
 
@@ -529,8 +529,15 @@ function stageText() {
   $('#stageText').innerHTML = `<b>${s.title}</b><br>${s.text}<br><span style="color:#8590c0">Bindu intensity ×${D.BINDU_INTENSITY[state.stage].toFixed(2)}</span>${ex(STAGE_EXPLAIN[state.stage], 'Explain this stage ▸')}${state.stage === 8 ? `<div class="note small">${'Phowa is traditionally practised only after transmission and instruction from a qualified teacher. This is a symbolic visualisation, not instruction.'}</div>` : ''}`;
   document.querySelectorAll('.stage').forEach((b) => b.classList.toggle('active', +b.dataset.stage === state.stage && state.stage !== 0));
 }
+const PHOWA_STEP = TUMMO_STEPS.findIndex((x) => x.key === 'phowa');
+// palace phowa (stage 8) and the figure's phowa step are linked: one click starts both from the same t0
+function applyStage(n, t0) { state.stage = n; state.binduIntensity = D.BINDU_INTENSITY[n]; stageT0 = t0; stageText(); }
+function applyTummo(i, t0) { state.tummoStep = i; state.thogalStep = -1; human.setStep(i, t0); tummoText(); }
 function setStage(n) {
-  state.stage = n; state.binduIntensity = D.BINDU_INTENSITY[n]; stageT0 = clock.elapsedTime; stageText();
+  const t0 = clock.elapsedTime; applyStage(n, t0);
+  if (n === 8) { state.phowaT0 = t0; applyTummo(PHOWA_STEP, t0); }
+  else if (n === 0) { state.phowaT0 = null; applyTummo(-1, t0); }
+  else if (state.tummoStep !== PHOWA_STEP) state.phowaT0 = null;
 }
 let stageT0 = 0;
 
@@ -637,7 +644,7 @@ function flyTo(pos, target) { fly = { p0: camera.position.clone(), t0: controls.
 function setMorph(e) { state.morph = e; $('#morph').value = e; palaceRoot.scale.y = Math.max(e, 0.004); for (const o of lifted) o.position.y = o.userData.baseY * e; }
 
 // ------------------------------------------------------------------ Human Maṇḍala mode
-const human = createHuman({ makePoints, glowSprite, makeLabel, lineMat, setFade, state });
+const human = createHuman({ makePoints, glowSprite, makeLabel, lineMat, setFade, state, phowaDur: PHOWA_DUR });
 let camStore = { palace: null, human: { pos: human.home.pos.clone(), target: human.home.target.clone() } };
 function setMode(m) {
   if (m === state.mode) return; camStore[state.mode] = { pos: camera.position.clone(), target: controls.target.clone() };
@@ -661,8 +668,22 @@ const tummoBox = $('#tummoButtons');
 TUMMO_STEPS.forEach((s, i) => { const b = document.createElement('button'); b.className = 'stage tstep'; b.dataset.step = i; b.style.setProperty('--c', s.key === 'phowa' ? '#fff6d0' : `hsl(${20 + i * 22},90%,60%)`);
   b.innerHTML = `<span class="dot">${s.key === 'phowa' ? '⇡' : i + 1}</span><span class="t">${s.t.replace(/^\d+ · /, '')}</span>`; b.onclick = () => setTummo(i); tummoBox.appendChild(b); });
 { const b = document.createElement('button'); b.className = 'stage reset'; b.textContent = '↺ Reset figure'; b.onclick = () => setTummo(-1); tummoBox.appendChild(b); }
-function setTummo(i) { state.tummoStep = i; human.setStep(i, clock.elapsedTime); tummoText(); }
+function setTummo(i) { const t0 = clock.elapsedTime; applyTummo(i, t0);
+  if (i === PHOWA_STEP) { state.phowaT0 = t0; applyStage(8, t0); }
+  else if (i === -1) { state.phowaT0 = null; applyStage(0, t0); }
+  else if (state.stage !== 8) state.phowaT0 = null; }
+const thogBox = $('#thogalButtons');
+THOGAL_STEPS.forEach((s, i) => { const b = document.createElement('button'); b.className = 'stage thstep'; b.dataset.thstep = i; b.style.setProperty('--c', ['#b9d0ff', '#9fc0ff', '#d6c8ff', '#ffffff', '#ff9ad5'][i]);
+  b.innerHTML = `<span class="dot">${['I', 'II', 'III', 'IV', '◌'][i]}</span><span class="t">${s.t.replace(/^[IV]+ · /, '')}<small>${s.tib}</small></span>`; b.onclick = () => setThogal(i); thogBox.appendChild(b); });
+function setThogal(i) { const t0 = clock.elapsedTime; if (state.tummoStep === PHOWA_STEP) state.phowaT0 = null; state.tummoStep = -1; human.setThogal(i, t0); state.thogalStep = i; tummoText(); }
+$('#hFocus').onclick = () => { const th = state.thogalStep, V3 = THREE.Vector3;
+  if (th === 4 || state.tummoStep === PHOWA_STEP) flyTo(new V3(0, 135, 340), new V3(0, 112, 0));
+  else if (th >= 1 && th <= 3) flyTo(new V3(0, 92, 205), new V3(0, 80, 20));
+  else if (th === 0 || state.tummoStep === 10) flyTo(new V3(0, 90, 150), new V3(0, 84, 20));
+  else flyTo(human.home.pos.clone(), human.home.target.clone()); };
 function tummoText() { const i = state.tummoStep; document.querySelectorAll('.tstep').forEach((b) => b.classList.toggle('active', +b.dataset.step === i));
+  document.querySelectorAll('.thstep').forEach((b) => b.classList.toggle('active', +b.dataset.thstep === state.thogalStep));
+  if (state.thogalStep >= 0) { const s = THOGAL_STEPS[state.thogalStep]; $('#tummoText').innerHTML = `<b>${s.t}</b> <span class="muted">(${s.tib})</span><ul class="inst">${s.inst.map((x) => `<li>${x}</li>`).join('')}</ul>${ex(s, 'Explain · metaphor · references ▸')}${ex(THOGAL_INTRO, 'About thögal ▸')}`; $('#humanPanel').scrollTop = thogBox.offsetTop - 70; return; }
   if (i < 0) { $('#tummoText').innerHTML = `<b>Choose a step.</b> Each click shows one stage of the inner-fire (tummo) sequence on the holographic body.<div class="note small">${PRACTICE_NOTE}</div>`; return; }
   const s = TUMMO_STEPS[i]; $('#tummoText').innerHTML = `<b>${s.t}</b><ul class="inst">${s.inst.map((x) => `<li>${x}</li>`).join('')}</ul>${ex(s, 'Explain · metaphor · references ▸')}<div class="note small">Educational overview only — practised traditionally only with empowerment and a qualified teacher.</div>`; }
 
@@ -743,6 +764,8 @@ function animate() {
   for (const m of allPointMats) m.uniforms.uTime.value = t;
   if (fly) { const u = Math.min(1, (t - fly.s) / 1.6), e = u * u * (3 - 2 * u); camera.position.lerpVectors(fly.p0, fly.p1, e); controls.target.lerpVectors(fly.t0, fly.t1, e); if (u >= 1) fly = null; }
   controls.update();
+  state.phowaPalace = st === 8 ? Math.min(1, (t - stageT0) / PHOWA_DUR) : 0;
+  state.phowaHuman = state.tummoStep === PHOWA_STEP ? Math.min(1, (t - human.stepT0) / PHOWA_DUR) : 0;
   if (state.mode === 'human') { human.update(t, dt); bloom.strength = 0.75; bloom.radius = 0.5; labels.forEach((l) => { if (!state.labels) l.visible = false; }); composer.render(); return; }
   // phowa progress: only after the phowa button was clicked (stage 8), eased over PHOWA_DUR seconds
   const phT = st === 8 ? Math.min(1, (t - stageT0) / PHOWA_DUR) : 0, phE = phT * phT * (3 - 2 * phT); state.phowa = phT;
@@ -910,7 +933,7 @@ async function boot() {
   // regenerate canvas-text textures after fonts are available
   for (const sp of shaktiSprites) { const s = D.SHAKTIS[sp.userData.idx]; sp.material.map = bijaTex(s.bija, D.FIELDS[s.field].color); sp.material.needsUpdate = true; }
   stageText(); showOverview(); setMorph(1); animate();
-  window.__app = { setStage, selectShakti, selectField, setMorph, focusShakti, focusCurrent, flyTo, setMode, setTummo, playThread, goPhase, stopChain, openOverlay, projectShakti: (i) => { const v = shaktiWorld(i, new THREE.Vector3()).project(camera); return [(v.x + 1) / 2 * innerWidth, (1 - v.y) / 2 * innerHeight]; }, getChain: () => chain && { i: chain.i, n: chain.phases.length, playing: chain.playing, form: chain.phases[chain.i].form }, topView: () => $('#topView').click(), resetView: () => $('#resetView').click(), camera, controls, state };
+  window.__app = { setThogal, setStage, selectShakti, selectField, setMorph, focusShakti, focusCurrent, flyTo, setMode, setTummo, playThread, goPhase, stopChain, openOverlay, projectShakti: (i) => { const v = shaktiWorld(i, new THREE.Vector3()).project(camera); return [(v.x + 1) / 2 * innerWidth, (1 - v.y) / 2 * innerHeight]; }, getChain: () => chain && { i: chain.i, n: chain.phases.length, playing: chain.playing, form: chain.phases[chain.i].form }, topView: () => $('#topView').click(), resetView: () => $('#resetView').click(), camera, controls, state };
   setTimeout(() => { $('#loading').style.opacity = 0; setTimeout(() => $('#loading').remove(), 1000); }, 300);
   window.__ready = true;
 }

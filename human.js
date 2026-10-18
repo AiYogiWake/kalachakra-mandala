@@ -96,25 +96,113 @@ export function createHuman(K) {
     for (let i = 0; i < pts.length; i += 2) { const g = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(...pts[i]), new THREE.Vector3(...pts[i + 1])]); const l = new THREE.Line(g, lineMat('#2bff9a', 0.1)); const mid = new THREE.Vector3((pts[i][0] + pts[i + 1][0]) / 2, (pts[i][1] + pts[i + 1][1]) / 2, (pts[i][2] + pts[i + 1][2]) / 2); l.userData.dir = mid.clone().sub(new THREE.Vector3(0, 60, 0)).normalize(); l.userData.spin = (Math.random() - .5) * 2; cage.add(l); cageSegs.push(l); } }
   const title = makeLabel('मानुषमण्डल', 'The Human Maṇḍala — three kāyas', '#ffd36b', 7); title.position.set(0, 10, 30); root.add(title);
 
+  // ---------------- THÖGAL: karmic “code” as sentient geometry (metaphor), five-light mandalas, night sky, rainbow body
+  const SILVER = new THREE.Color('#b9d0ff');
+  const G = new THREE.Vector3(0, H.heart + 120, 0.6); // the same ground the phowa drop reaches
+  const thog = new THREE.Group(); root.add(thog);
+  const FORM_N = 24, DISSOLVED = [3, 9, 15, 21, 24], STOPPED = [6, 13, 20, 24, 24];
+  const forms = [];
+  const lineSegs = (geo, c, o) => new THREE.LineSegments(new THREE.EdgesGeometry(geo), lineMat(c, o));
+  function ringGeo(r0, n = 48) { const pts = []; for (let i = 0; i < n; i++) { const a = i / n * TAU, b = (i + 1) / n * TAU; pts.push(new THREE.Vector3(Math.cos(a) * r0, Math.sin(a) * r0, 0), new THREE.Vector3(Math.cos(b) * r0, Math.sin(b) * r0, 0)); } return new THREE.BufferGeometry().setFromPoints(pts); }
+  function makeForm(k) { const g = new THREE.Group(); const kind = k % 8; const mat = () => lineMat('#b9d0ff', 0.55);
+    if (kind === 0) g.add(lineSegs(new THREE.IcosahedronGeometry(1), '#b9d0ff', 0.55));
+    else if (kind === 1) g.add(lineSegs(new THREE.DodecahedronGeometry(1), '#b9d0ff', 0.55));
+    else if (kind === 2) { const a = lineSegs(new THREE.TetrahedronGeometry(1.1), '#b9d0ff', 0.55), b = lineSegs(new THREE.TetrahedronGeometry(1.1), '#b9d0ff', 0.55); b.rotation.set(Math.PI, 0, Math.PI / 2); g.add(a, b); } // star tetrahedron
+    else if (kind === 3) { [1, 0.62, 0.38].forEach((s, j) => { const m = lineSegs(j % 2 ? new THREE.OctahedronGeometry(s) : new THREE.IcosahedronGeometry(s), '#b9d0ff', 0.5); m.userData.nest = j; g.add(m); }); } // nested rotating figures
+    else if (kind === 4) { for (let j = 0; j < 7; j++) { const l = new THREE.LineSegments(ringGeo(0.5), mat()); if (j) l.position.set(Math.cos(j / 6 * TAU) * 0.5, Math.sin(j / 6 * TAU) * 0.5, 0); g.add(l); } } // seed-of-life lattice
+    else if (kind === 5) g.add(lineSegs(new THREE.OctahedronGeometry(1), '#b9d0ff', 0.55));
+    else if (kind === 6) { const l = new THREE.LineSegments(new THREE.WireframeGeometry(new THREE.TorusGeometry(0.8, 0.28, 6, 14)), mat()); g.add(l); }
+    else { const c = lineSegs(new THREE.BoxGeometry(1.2, 1.2, 1.2), '#b9d0ff', 0.55), i2 = lineSegs(new THREE.BoxGeometry(0.7, 0.7, 0.7), '#b9d0ff', 0.5); i2.userData.nest = 1; i2.rotation.set(0.6, 0.6, 0); g.add(c, i2); } // tesseract-like
+    return g; }
+  { const order = [...Array(FORM_N).keys()].sort((a, b) => ((a * 7919) % 31) - ((b * 7919) % 31));
+    for (let k = 0; k < FORM_N; k++) { const g = makeForm(k); const y = 1 - (k + 0.5) / FORM_N * 2, rr = Math.sqrt(1 - y * y), th = k * 2.39996; const R0 = 42 + (k % 3) * 9;
+      const home = new THREE.Vector3(Math.cos(th) * rr * R0, 62 + y * 44, Math.sin(th) * rr * R0 * 0.8); g.position.copy(home); const sc = 4 + (k % 4) * 1.4; g.scale.setScalar(sc);
+      g.userData = { home, sc, order: order.indexOf(k), axis: new THREE.Vector3(Math.sin(k), 1, Math.cos(k * 1.3)).normalize(), speed: 0.5 + (k % 5) * 0.18, rot: 0, d: 0, sp: 1 }; thog.add(g); forms.push(g); } }
+  const VORT_N = 3600; const vort = makePoints(VORT_N, 0.9, 0, 0.3); thog.add(vort);
+  const DUST_N = 2400; const dust = makePoints(DUST_N, 1.1, 0, 0.4); thog.add(dust);
+  const MAND_N = 4200; const mand = makePoints(MAND_N, 1.0, 0, 0.2); thog.add(mand);
+  const FIVE = ['#3d6bff', '#f4f6ff', '#ffd23a', '#ff3a3a', '#3dff7a'].map((c) => new THREE.Color(c));
+  const SKY_N = 2600; const sky = makePoints(SKY_N, 1.6, 0, 1); thog.add(sky);
+  { const P = sky.geometry.attributes.position.array, C = sky.geometry.attributes.aColor.array, S = sky.geometry.attributes.aSize.array;
+    for (let i = 0; i < SKY_N; i++) { const th = r() * TAU, ph = Math.acos(r() * 0.95), rr = 420 + r() * 200; P.set([Math.sin(ph) * Math.cos(th) * rr, 40 + Math.cos(ph) * rr * 0.8, -Math.abs(Math.sin(ph) * Math.sin(th) * rr) - 60], i * 3); const k2 = 0.5 + r() * 0.5; C.set([0.75 * k2, 0.85 * k2, k2], i * 3); S[i] = 0.4 + Math.pow(r(), 3) * 3; } }
+  const moon = glowSprite('#cfe0ff', 140, 0, 0.06); moon.position.set(-170, 175, -260); thog.add(moon);
+  const groundGlow = glowSprite('#ffffff', 26, 0, 0.15); groundGlow.position.copy(G); thog.add(groundGlow);
+  const RB_N = 1800; const rbAura = makePoints(RB_N, 1.2, 0, 0.3); thog.add(rbAura);
+  const TS = { step: -1, t0: 0, rb: 0 }; const TV = { thog: 0, mand: 0, sky: 0 };
+  K.state.thogal = { step: -1, stopped: 0, dissolved: 0, active: 0 };
+  function setThogal(n, t) { setStep(-1, t); TS.step = n; TS.t0 = t; if (n < 0) return;
+    T.channels = 0.35; T.kati = n <= 2 ? 1 : 0.3; T.visions = [1, 0.6, 0.3, 0, 0][n]; T.matrix = 1; T.hollow = 0.3; }
+  function updateThogal(t, dt) {
+    const on = TS.step >= 0; TV.thog = TV.thog + ((on ? 1 : 0) - TV.thog) * (1 - Math.exp(-dt * 2));
+    thog.visible = TV.thog > 0.01; if (!thog.visible) { TS.rb = 0; scene.background.set('#02030a'); K.state.thogal = { step: -1, stopped: 0, dissolved: 0, active: 0 }; return; }
+    const n = Math.max(TS.step, 0), st = t - TS.t0; const prevD = n > 0 ? DISSOLVED[n - 1] : 0, prevS = n > 0 ? STOPPED[n - 1] : 0;
+    const flash = TS.step === 3 ? Math.max(0, 1 - Math.abs(st - 1.2) / 1.2) : 0; // full spectrum at the breakthrough
+    let stopped = 0, dissolved = 0, active = 0; const centres = [];
+    for (const g of forms) { const u = g.userData, o = u.order; let d, sp;
+      if (!on) { d = 1; sp = 0; }
+      else { d = o < prevD ? 1 : o < DISSOLVED[n] ? Math.max(0, Math.min(1, (st - (n === 3 ? 2.2 : 0.6) - (o - prevD) * 0.45) / 1.2)) : 0;
+        sp = o < prevS ? 0 : o < STOPPED[n] ? Math.max(0, 1 - (st - (o - prevS) * 0.3) / 1.5) : 1 - 0.2 * (n + 1); }
+      u.d = d; u.sp = sp; u.rot += u.speed * Math.max(0, sp) * dt; g.quaternion.setFromAxisAngle(u.axis, u.rot);
+      g.children.forEach((c) => { if (c.userData.nest) c.rotation.y = -u.rot * (1 + c.userData.nest); });
+      g.scale.setScalar(u.sc * (1 + d * 0.9)); g.visible = d < 0.999;
+      const op = (1 - d) * 0.6 * TV.thog; g.children.forEach((c) => { c.material.opacity = op; if (flash > 0) c.material.color.setHSL((o / FORM_N + t * 0.2) % 1, 1, 0.6).lerp(SILVER, 1 - flash); else c.material.color.copy(SILVER); });
+      if (on && sp <= 0.001) stopped++; if (on && d >= 0.999) dissolved++; if (on && d < 0.999) active++; centres.push([g.position, u, d, sp]); }
+    K.state.thogal = { step: TS.step, stopped, dissolved, active };
+    // galactic vortexes around still-turning forms (strongest in visions II–III)
+    { const amp = [0.35, 1, 0.9, 0.3, 0][n] * TV.thog; const P = vort.geometry.attributes.position.array, C = vort.geometry.attributes.aColor.array, S = vort.geometry.attributes.aSize.array; vort.material.uniforms.uOpacity.value = amp;
+      for (let i = 0; i < VORT_N; i++) { const [p, u, d, sp] = centres[i % FORM_N]; const q = (i * 0.618034) % 1; const arm = (i >> 5) % 2; const rr = u.sc * (1.2 + q * 2.6); const a = arm * Math.PI + q * 7 + u.rot * 1.6;
+        const x = Math.cos(a) * rr, z = Math.sin(a) * rr * 0.35, y = Math.sin(a) * rr * 0.25; P[i * 3] = p.x + x; P[i * 3 + 1] = p.y + y; P[i * 3 + 2] = p.z + z;
+        const b = (1 - d) * (0.4 + 0.6 * (1 - q)) * (0.35 + 0.65 * Math.min(1, sp + 0.2)); C[i * 3] = SILVER.r * b; C[i * 3 + 1] = SILVER.g * b; C[i * 3 + 2] = SILVER.b * b; S[i] = 0.5 + (1 - q); }
+      vort.geometry.attributes.position.needsUpdate = vort.geometry.attributes.aColor.needsUpdate = vort.geometry.attributes.aSize.needsUpdate = true; }
+    // dissolving dust: each form breaks into silver motes as it dissolves
+    { const P = dust.geometry.attributes.position.array, C = dust.geometry.attributes.aColor.array, S = dust.geometry.attributes.aSize.array; dust.material.uniforms.uOpacity.value = TV.thog;
+      for (let i = 0; i < DUST_N; i++) { const [p, u, d] = centres[i % FORM_N]; const q = (i * 0.618034) % 1, q2 = (i * 0.754877) % 1; const live = d > 0.001 && d < 0.999 ? Math.sin(d * Math.PI) : 0; const rr = u.sc * (1 + d * 4) * (0.4 + q);
+        const th = q2 * TAU, ph = q * Math.PI; P[i * 3] = p.x + Math.sin(ph) * Math.cos(th) * rr; P[i * 3 + 1] = p.y + Math.cos(ph) * rr + d * 6; P[i * 3 + 2] = p.z + Math.sin(ph) * Math.sin(th) * rr;
+        C[i * 3] = 0.8 * live; C[i * 3 + 1] = 0.88 * live; C[i * 3 + 2] = live; S[i] = 1.2 * live; }
+      dust.geometry.attributes.position.needsUpdate = dust.geometry.attributes.aColor.needsUpdate = dust.geometry.attributes.aSize.needsUpdate = true; }
+    // five-light mandalas: open in II, fill space in III, fold back into the heart in IV
+    { const show = TS.step >= 1 && TS.step <= 3; TV.mand = TV.mand + ((show ? 1 : 0) - TV.mand) * (1 - Math.exp(-dt * 1.5)); mand.visible = TV.mand > 0.01;
+      if (mand.visible) { const grow = TS.step === 1 ? Math.min(1, st / 4) * 0.55 : TS.step === 2 ? 0.55 + Math.min(1, st / 4) * 0.45 : 1; const fold = TS.step === 3 ? Math.max(0, Math.min(1, (st - 2.4) / 3.5)) : 0; const fe = fold * fold * (3 - 2 * fold);
+        const count = TS.step === 1 ? 7 : 19; const P = mand.geometry.attributes.position.array, C = mand.geometry.attributes.aColor.array, S = mand.geometry.attributes.aSize.array; mand.material.uniforms.uOpacity.value = TV.mand;
+        for (let i = 0; i < MAND_N; i++) { const m = i % count; let cx = 0, cy = 86, ring = 0; if (m > 0 && m < 7) { const a = m / 6 * TAU + t * 0.03; cx = Math.cos(a) * 26; cy = 86 + Math.sin(a) * 26; ring = 1; } else if (m >= 7) { const a = (m - 7) / 12 * TAU - t * 0.02; cx = Math.cos(a) * 52; cy = 86 + Math.sin(a) * 46; ring = 2; }
+          const sc = (ring === 0 ? 9 : ring === 1 ? 7 : 6) * grow; const q = (i * 0.618034) % 1; const band = Math.floor(q * 5); const th = ((i * 0.754877) % 1) * TAU; const rr = sc * (0.15 + band * 0.2) * (1 + 0.04 * Math.sin(th * 8 + t));
+          let x = cx * grow + Math.cos(th) * rr, y = 86 + (cy - 86) * grow + Math.sin(th) * rr, z = 26 + ring * 8;
+          x += (0 - x) * fe; y += (H.heart - y) * fe; z += (0.6 - z) * fe; P[i * 3] = x; P[i * 3 + 1] = y; P[i * 3 + 2] = z;
+          let c = FIVE[band]; if (flash > 0) { const hc = new THREE.Color().setHSL((th / TAU + band * 0.2) % 1, 1, 0.6); c = c.clone().lerp(hc, flash); }
+          const b = 0.85 * (1 - fe * 0.6); C[i * 3] = c.r * b; C[i * 3 + 1] = c.g * b; C[i * 3 + 2] = c.b * b; S[i] = (0.7 + 0.5 * (band === 0)) * (1 - fe * 0.5); }
+        mand.geometry.attributes.position.needsUpdate = mand.geometry.attributes.aColor.needsUpdate = mand.geometry.attributes.aSize.needsUpdate = true; } }
+    // spacious moonlit night sky (IV–V), moon glow throughout
+    TV.sky = TV.sky + ((TS.step >= 3 ? 1 : TS.step >= 0 ? 0.25 : 0) - TV.sky) * (1 - Math.exp(-dt * 1.2)); sky.material.uniforms.uOpacity.value = TV.sky; moon.material.opacity = TV.thog * (0.12 + 0.18 * TV.sky);
+    scene.background.setRGB(0.008 + 0.01 * TV.sky, 0.012 + 0.018 * TV.sky, 0.04 + 0.05 * TV.sky);
+    // rainbow body: the figure thins into rainbow light and gathers on the phowa ground
+    const rb = TS.step === 4 ? Math.min(1, st / 9) : 0; TS.rb = rb; K.state.thogal.rainbow = rb;
+    groundGlow.material.opacity = rb > 0 ? Math.min(0.9, rb * 1.4) : 0; groundGlow.scale.setScalar(14 + rb * 30);
+    { rbAura.visible = rb > 0; if (rb > 0) { const P = rbAura.geometry.attributes.position.array, C = rbAura.geometry.attributes.aColor.array; rbAura.material.uniforms.uOpacity.value = Math.min(1, rb * 3);
+      for (let i = 0; i < RB_N; i++) { const q = (i * 0.618034) % 1; const u = (q + t * 0.05) % 1; const th = ((i * 0.754877) % 1) * TAU + t * 0.3; const rr = (8 + 34 * ((i * 0.5698) % 1)) * Math.sin(u * Math.PI) * (1 - rb * 0.6) + 3; const y = 30 + u * 85 + rb * rb * (G.y - 70) * u;
+        P[i * 3] = Math.cos(th) * rr; P[i * 3 + 1] = y; P[i * 3 + 2] = Math.sin(th) * rr * 0.7; const c = new THREE.Color().setHSL((u + t * 0.05) % 1, 1, 0.6); C.set([c.r, c.g, c.b], i * 3); }
+      rbAura.geometry.attributes.position.needsUpdate = rbAura.geometry.attributes.aColor.needsUpdate = true; } }
+  }
   // ---------------- state
   const V = { scan: 0, hollow: 0, channels: 0.6, purify: 0, winds: 0, vase: 0, flame: 0, ham: 0, joys: 0, heart: 0, dissolve: 0, clear: 0, kati: 0, visions: 0, matrix: 0, rainbow: 0, phowa: 0 };
   const T = { ...V }; let step = -1, stepT0 = 0, showKayas = true;
-  function setStep(n, t) { step = n; stepT0 = t; for (const k in T) T[k] = 0; T.channels = 0.6; const vis = n >= 0 ? TUMMO_STEPS[n].vis : {}; for (const k in vis) T[k] = vis[k]; if (n < 0) { T.channels = 0.6; } }
+  function setStep(n, t) { step = n; stepT0 = t; TS.step = -1; for (const k in T) T[k] = 0; T.channels = 0.6; const vis = n >= 0 ? TUMMO_STEPS[n].vis : {}; for (const k in vis) T[k] = vis[k]; if (n < 0) { T.channels = 0.6; } }
   setStep(-1, 0);
   const tmp = [0, 0, 0];
   function update(t, dt) {
     const k = 1 - Math.exp(-dt * 2.2); for (const key in V) V[key] += (T[key] - V[key]) * k;
     const st = t - stepT0;
     // phowa progress (only after its step is clicked)
-    const ph = step >= 0 && TUMMO_STEPS[step].key === 'phowa' ? Math.min(1, st / 7) : 0;
+    const ph = step >= 0 && TUMMO_STEPS[step].key === 'phowa' ? Math.min(1, st / (K.phowaDur || 7)) : 0;
     // body hologram
     { const P = body.geometry.attributes.position.array, C = body.geometry.attributes.aColor.array; const scanY = ((t * 18) % 160) - 20; const fadeB = 1 - V.clear * 0.6 - V.dissolve * 0.3;
       for (let i = 0; i < BODY_N; i++) { let x = base[i * 3], y = base[i * 3 + 1], z = base[i * 3 + 2];
         if (V.dissolve > 0.01) { const f = V.dissolve * 0.35 * (0.5 + 0.5 * Math.sin(i)); x += (0 - x) * f; y += (H.heart - y) * f; z += (0.6 - z) * f; }
+        if (TS.rb > 0) { const f = Math.max(0, Math.min(1, TS.rb * 1.5 - (i % 97) / 97 * 0.5)); const e = f * f; const a = i * 2.39996; x += (G.x + Math.cos(a) * 6 * (1 - e * 0.5) - x) * e; y += (G.y + Math.sin(i) * 5 - y) * e; z += (G.z + Math.sin(a) * 6 - z) * e; }
         if (ph > 0) { const f = Math.max(0, ph * 1.4 - (i % 97) / 97 * 0.4); y += f * f * (40 + (i % 53)); x *= 1 + f * 0.6; z *= 1 + f * 0.6; }
         P[i * 3] = x; P[i * 3 + 1] = y; P[i * 3 + 2] = z;
-        let c0 = bodyCol.r, c1 = bodyCol.g, c2 = bodyCol.b; if (V.rainbow > 0.01 || ph > 0) { const hue = (y / 120 + t * 0.08) % 1; const q = new THREE.Color().setHSL(hue, 0.9, 0.6); const m = Math.max(V.rainbow, ph); c0 += (q.r - c0) * m; c1 += (q.g - c1) * m; c2 += (q.b - c2) * m; }
-        const sc = Math.exp(-Math.pow((y - scanY) / 3, 2)) * (0.6 + V.scan * 0.8); const b = (0.62 + (part[i] === 3 ? 0.1 : 0) + sc) * fadeB * (1 - ph * 0.85) * (1 - V.hollow * 0.35);
+        let c0 = bodyCol.r, c1 = bodyCol.g, c2 = bodyCol.b; if (TV.thog > 0.01 && !(TS.rb > 0)) { c0 += (SILVER.r - c0) * TV.thog; c1 += (SILVER.g - c1) * TV.thog; c2 += (SILVER.b - c2) * TV.thog; }
+        if (V.rainbow > 0.01 || ph > 0 || TS.rb > 0) { const hue = (y / 120 + t * 0.08) % 1; const q = new THREE.Color().setHSL(hue, 0.9, 0.6); const m = Math.max(V.rainbow, ph, TS.rb > 0 ? Math.min(1, TS.rb * 3) : 0); c0 += (q.r - c0) * m; c1 += (q.g - c1) * m; c2 += (q.b - c2) * m; }
+        const sc = Math.exp(-Math.pow((y - scanY) / 3, 2)) * (0.6 + V.scan * 0.8); const b = (0.62 + (part[i] === 3 ? 0.1 : 0) + sc) * fadeB * (1 - ph * 0.85) * (1 - V.hollow * 0.35) * (1 - (TS.rb || 0) * 0.6);
         C[i * 3] = c0 * b + sc * 0.3; C[i * 3 + 1] = c1 * b + sc * 0.3; C[i * 3 + 2] = c2 * b + sc * 0.3; }
       body.geometry.attributes.position.needsUpdate = body.geometry.attributes.aColor.needsUpdate = true; }
     // channels
@@ -128,7 +216,7 @@ export function createHuman(K) {
     ham.material.opacity = 0.3 + 0.7 * Math.max(V.ham, V.channels * 0.5); shortA.material.opacity = 0.3 + 0.7 * Math.max(V.flame, V.channels * 0.5);
     heartDrop.scale.setScalar(1 + V.dissolve * 1.2 + V.clear * 0.8); dGlow.material.opacity = 0.4 + V.heart * 0.4 + V.dissolve * 0.4;
     if (ph > 0) { const y = H.heart + Math.pow(ph, 1.6) * 120; heartDrop.position.y = y; heartDrop.scale.setScalar(1.6 + ph * 2); } else heartDrop.position.y = H.heart;
-    kayas.visible = showKayas && step < 9; setFade(kayas, 0.9 * (1 - V.clear));
+    kayas.visible = showKayas && step < 9 && TS.step < 0; setFade(kayas, 0.9 * (1 - V.clear));
     joyLabels.forEach((l, i) => { const on = V.joys > 0.6 && st > 1 + i * 1.6; l.visible = on && l.userData.isLabel !== false; l.material.opacity = on ? 0.95 : 0; });
     clear.material.opacity = V.clear * 0.35 + ph * 0.3; clear.visible = clear.material.opacity > 0.01; clear.position.y = 60 + ph * 60;
     // kati channel
@@ -156,9 +244,10 @@ export function createHuman(K) {
       visions.geometry.attributes.position.needsUpdate = visions.geometry.attributes.aColor.needsUpdate = visions.geometry.attributes.aSize.needsUpdate = true; } }
     // matrix cage
     cageSegs.forEach((l) => { const m = V.matrix; l.position.copy(l.userData.dir).multiplyScalar(m * m * 120); l.rotation.y = m * l.userData.spin; l.material.opacity = 0.1 * (1 - m) + (m > 0.01 && m < 0.95 ? 0.15 * Math.sin(m * Math.PI) : 0); l.visible = l.material.opacity > 0.01; });
+    updateThogal(t, dt);
     labels(t);
   }
-  function labels() { [labUma, labRoma, labKy, labKati].forEach((l) => { l.visible = K.state.labels; }); }
-  return { scene, root, update, setStep, pickables, get step() { return step; }, setKayas(v) { showKayas = v; }, home: { pos: new THREE.Vector3(0, 78, 175), target: new THREE.Vector3(0, 62, 0) } };
+  function labels() { [labUma, labRoma, labKy, labKati].forEach((l) => { l.visible = K.state.labels && TS.step < 3; }); }
+  return { scene, root, update, setStep, setThogal, get thogalStep() { return TS.step; }, groundPoint: G, pickables, get step() { return step; }, get stepT0() { return stepT0; }, setKayas(v) { showKayas = v; }, home: { pos: new THREE.Vector3(0, 78, 175), target: new THREE.Vector3(0, 62, 0) } };
 }
 function mulberry(seed) { return function () { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
