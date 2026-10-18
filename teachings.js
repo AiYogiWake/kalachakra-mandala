@@ -5,7 +5,7 @@
 
 export const VOICE_NOTE = 'Imagined voice — “Longchenpa landed in modern times.” A creative metaphor written for this artwork, not a quotation.';
 export const DIALOGUE_NOTE = 'An imagined, respectful dialogue. Neither His Holiness the Dalai Lama nor Longchen Rabjam (1308–1364) said these words; they are composed as an offering, drawing on themes found in the works listed under References.';
-export const PRACTICE_NOTE = 'Educational overview only. Tummo, the Six Yogas of Naropa, Kalachakra’s six-branched yoga and Dzogchen tögal are traditionally practised only after empowerment and oral instruction from a qualified teacher, within a lineage, and on the basis of renunciation, bodhicitta and the view of emptiness. Forceful breath-holding and wind practices can harm health. Nothing here is a substitute for a teacher.';
+export const PRACTICE_NOTE = 'Educational overview only. Tummo, the Six Yogas of Naropa, and Kalachakra’s six-branched yoga are traditionally practised only after empowerment and oral instruction from a qualified teacher, within a lineage, and on the basis of renunciation, bodhicitta and the view of emptiness. Forceful breath-holding and wind practices can harm health. Nothing here is a substitute for a teacher.';
 
 // ---------------------------------------------------------------- references (verified links only)
 // v: true = URL checked (HTTP 200, matching title) on 2026-10-17; url null = real work, no stable link verified.
@@ -33,6 +33,8 @@ export const REFS = {
   rwSeven:   { cite: 'Rigpa Wiki — “Seven Treasuries.”', url: 'https://www.rigpawiki.org/index.php?title=Seven_Treasuries', v: true },
   rw17:      { cite: 'Rigpa Wiki — “Seventeen Tantras.”', url: 'https://www.rigpawiki.org/index.php?title=Seventeen_Tantras', v: true },
   rwKayas:   { cite: 'Rigpa Wiki — “Three kayas.”', url: 'https://www.rigpawiki.org/index.php?title=Three_kayas', v: true },
+  rwVisions: { cite: 'Rigpa Wiki — “Four visions.”', url: 'https://www.rigpawiki.org/index.php?title=Four_visions', v: true },
+  rwLamps:   { cite: 'Rigpa Wiki — “Four lamps.”', url: 'https://www.rigpawiki.org/index.php?title=Four_lamps', v: true },
   rwPhowa:   { cite: 'Rigpa Wiki — “Phowa.”', url: 'https://www.rigpawiki.org/index.php?title=Phowa', v: true },
 };
 
@@ -197,4 +199,33 @@ export const DIALOGUE = [
     ['DL', 'May you use your intelligence with a warm heart. Technology is only as good as the motivation behind it.'],
     ['LC', 'May you recognise the luminous screen behind every image, including the image of yourself.'],
     ['DL', 'And may that recognition become kindness toward every being you meet.'] ] },
+];
+
+// ---------------------------------------------------------------- Thögal: the four visions and the rainbow body
+// The “code” image (karmic imprints as sentient geometry) is a metaphor used by this artwork, not a doctrinal description.
+export const THOGAL_INTRO = { t: 'Thögal (thod rgal) — the direct crossing',
+  p: 'Thögal, “leap-over” or “direct crossing”, is the visionary practice of Dzogchen’s Heart-Essence (Nyingthig), taught in the Seventeen Tantras and set out by Longchenpa in the Treasury of Word and Meaning. The radiance of awareness, which abides in the heart, is said to travel through the crystal-tube kati channel and appear through the eyes (the “far-reaching water lamp”) as light in space. That light unfolds through four visions: direct perception of the ultimate nature, increasing experience, awareness reaching its full measure, and the exhaustion of phenomena in the ultimate nature. The fruition is the rainbow body. In this artwork’s framing, tummo collapses sun and moon (the red and white drops) into the central channel and gives rise to emanation bodies; thögal goes a step further and dissolves the karmic code itself into spaciousness.',
+  m: 'Metaphor: the karmic imprints stored in the ālaya are shown as code wrapped around the body. Not ones and zeros, but the base geometry of sentient forms: luminous polyhedra, lattices and nested figures, each one turning because a habit keeps turning it. Thögal does not hack the code. It lets the screen’s own light shine through until each program slows, stops and has nothing left to run on.',
+  r: ['tsigdon', 'smith17', 'rw17', 'rwVisions', 'rwLamps', 'rwLong'] };
+export const THOGAL_STEPS = [
+  { key: 'direct', t: 'I · Direct Perception of the Ultimate Nature', tib: 'chos nyid mngon sum',
+    inst: ['Light from the heart flows up the kati channel and out through the eyes.', 'Thigle (spheres of light, often ringed in five colours) and vajra chains (strings of light like pearls) appear in the space in front.', 'The geometry of karmic habit still turns around the body. The first few forms slow, stop and dissolve.'],
+    p: 'The first vision is the direct, bare perception of the ultimate nature (dharmatā) as light. In the texts, thigle and vajra chains appear in space, moving and unsteady, and are recognised as awareness’s own radiance, not as outer objects.',
+    m: 'Metaphor: the monitor shows its own backlight for the first time. The small bright circles and beaded chains are the screen showing itself through the running programs. Seeing that, the outermost loops lose their grip, slow down and close.', r: ['tsigdon', 'smith17', 'rwVisions', 'rwLamps'] },
+  { key: 'increase', t: 'II · Vision of Increasing Experience', tib: 'nyams gong ’phel',
+    inst: ['The lights grow and steady. Five-light mandalas open in front and spread outward.', 'The remaining geometric forms turn into slow galactic vortexes.', 'More forms come to rest and dissolve.'],
+    p: 'In the second vision the appearances increase. The thigle grow larger and fill more of space, the five lights spread into patterns and mandala forms, and parts of deities may begin to appear. Experience deepens and the visions become steadier.',
+    m: 'Metaphor: the backlight brightens until it starts drawing its own interface: five-coloured mandalas, the five lights as the screen’s native colour channels. The leftover loops spiral like galaxies, wide and slow, because less and less is feeding them.', r: ['tsigdon', 'smith17', 'rwVisions'] },
+  { key: 'perfect', t: 'III · Perfection of Intrinsic Awareness', tib: 'rig pa tshad phebs',
+    inst: ['The five-light mandalas reach full extent and fill the sky.', 'Galactic vortexes slow almost to stillness. Most forms have dissolved.', 'Awareness has reached its full measure.'],
+    p: 'In the third vision awareness reaches its full measure. Complete mandalas of the peaceful and wrathful sambhogakāya deities are said to fill space, and the whole visual field is the display of awareness.',
+    m: 'Metaphor: the interface now fills the whole screen. There is nowhere the light is not. The last programs barely turn. They are still running only out of momentum.', r: ['tsigdon', 'smith17', 'rwVisions'] },
+  { key: 'exhaust', t: 'IV · Dissolution of Phenomena into the Ultimate Nature', tib: 'chos nyid du zad pa',
+    inst: ['Breakthrough: for a moment the full spectrum appears all at once.', 'Every remaining form stops and dissolves. The mandalas fold back into the heart.', 'A spacious night sky remains, lit like moonlight.'],
+    p: 'In the fourth vision appearances are exhausted in the ultimate nature. The visions dissolve back into their source, grasping at body and appearance is used up, and what remains is open, spacious awareness. This is also called the exhaustion of phenomena beyond the mind.',
+    m: 'Metaphor: every colour flashes at once, the white of the screen showing what it always contained, and then the display folds back into the core. Nothing was deleted. There is simply nothing left to render. What remains is the night sky behind every window.', r: ['tsigdon', 'smith17', 'rw17', 'rwVisions'] },
+  { key: 'rainbow', t: 'V · Rainbow Body', tib: '’ja’ lus',
+    inst: ['The body thins into rainbow light.', 'It rises and gathers on the same ground the phowa drop reaches.', 'Nothing remains to be released. The last forms resolve into clarity.'],
+    p: 'The rainbow body (’ja’ lus) is the fruition described for thögal: at death the physical body of an accomplished practitioner dissolves into light, sometimes leaving only hair and nails, as recorded in Nyingma and Bön accounts. Where phowa transfers consciousness out of the body, the rainbow body dissolves the body itself into its luminous nature.',
+    m: 'Metaphor: phowa migrates the process to another server. The rainbow body shows the hardware was light all along: the device unrenders into the screen it ran on and lands on the same ground, by a different road.', r: ['tsigdon', 'smith17', 'rwVisions', 'rwLong'] },
 ];

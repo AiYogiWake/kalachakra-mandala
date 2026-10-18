@@ -91,6 +91,8 @@
   #humanPanel { top:14px; left:14px; width:300px; padding:12px; z-index:5; max-height:calc(100% - 150px); overflow:auto; display:none; }
   #humanPanel h1 { font-size:19px; } #humanPanel .sub { font-size:11px; color:var(--dim); margin:2px 0 8px; }
   #tummoText { font-size:11.5px; line-height:1.45; color:#b9c2f0; margin-top:8px; padding-top:8px; border-top:1px solid var(--line); } #tummoText b { color:var(--gold); }
+  #humanPanel h1.th { margin-top:10px; font-size:17px; color:#cfe0ff; }
+  #humanPanel .stage { padding:4px 7px; margin:2px 0; font-size:12px; }
   ul.inst { padding-left:16px; margin:5px 0; } ul.inst li { margin:3px 0; }
   .kt { display:block; margin:8px 0; font-size:11.5px; color:#cfe6ff; }
   body.human #yogas, body.human #fieldbar, body.human #controls .rowmorph, body.human #chainBar { display:none !important; }
@@ -117,7 +119,7 @@
 </div>
 
 <div id="tabs" class="panel"><button class="tab active" data-mode="palace">Palace of Time</button><button class="tab" data-mode="human">The Human Maṇḍala — Three Kāyas</button><button class="tab" data-ov="purpose">Purpose of Kālacakra</button><button class="tab" data-ov="refs">References</button></div>
-<div id="humanPanel" class="panel"><h1>Inner fire · Tummo</h1><div class="sub">Holographic body · click a step; nothing advances by itself.</div><div id="tummoButtons"></div><div id="tummoText"></div></div>
+<div id="humanPanel" class="panel"><h1>Inner fire · Tummo</h1><div class="sub">Holographic body · click a step; nothing advances by itself.</div><div id="tummoButtons"></div><h1 class="th">Thögal · the four visions</h1><div class="sub">Picks up from the kati channel. One click per vision.</div><div id="thogalButtons"></div><button class="btn" id="hFocus">⌖ Focus</button><div id="tummoText"></div></div>
 <div id="info" class="panel"></div>
 <div id="chainBar" class="panel" style="display:none"><div><span id="chPhase"></span><span id="chName"></span></div><div id="chVoice"></div><div id="chDots"></div><div class="ctl"><button id="chPrev">◀ Step back</button><button id="chPlay">⏸ Pause</button><button id="chNext">Step ▶</button><button id="chFocus">⌖ Focus</button><button id="chClose">✕ Close</button></div></div>
 <div id="overlay"><div class="ovbox panel"><button id="ovClose">✕ Close</button><div id="ovBody"></div></div></div>
