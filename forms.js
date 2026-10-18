@@ -28,7 +28,7 @@ function buildTree(seed, roots, opt) {
 }
 function treePt(T, i, R, t, o, speed = 0.22, loop = true) {
   const s = T.segs[i % T.segs.length];
-  const G = loop ? (fr(t * speed) * 1.35) * (T.maxD + 1) : (T.maxD + 1);
+  const G = loop ? max(0.45, fr(t * speed) * 1.35) * (T.maxD + 1) : (T.maxD + 1); // never below ~half-grown, so the silhouette always reads
   const local = min(1, max(0, G - s.d));
   const flow = fr(R.b[i] + t * 0.6);
   const u = (R.d[i] < 0.25 ? flow : R.b[i]) * local;
@@ -201,11 +201,12 @@ export const FORMS = {
       set(o, x - 0.1, y + 0.05, (R.d[i] - .5) * 0.05); o.w = 0.8; o.hue = 0.14; return; }
     const r0 = rng(i * 3 + 5); set(o, (r0() - .5) * 2, (r0() - .5) * 1.6, (r0() - .5) * 0.6); o.s = 0.4 + 1.6 * pow(max(0, sin(t * 1.3 + R.b[i] * 40)), 10); o.w = 0.9; },
   dream(i, N, R, t, o) { const x = R.a[i] * 2 - 1, z = R.c[i] * 2 - 1; let y = 0; const src = [[-0.4, -0.3, 0], [0.5, 0.2, 1.7], [-0.1, 0.5, 3.1]];
-    for (const [sx, sz, p] of src) { const d = Math.hypot(x - sx, z - sz), ph = fr(t * 0.15 + p / 5) * 2.5; y += 0.08 * sin((d - ph) * 14) * exp(-pow((d - ph) * 3, 2)); }
-    set(o, x, y - 0.3, z); o.w = abs(y) * 6; o.s = 0.7; if (R.d[i] < 0.08) { set(o, x * 0.8, 0.1 + fr(R.b[i] + t * 0.05) * 0.8, z * 0.8); o.s = 1.4; o.w = 0.7; o.hue = 0.6; } },
+    for (const [sx, sz, p] of src) { const d = Math.hypot(x - sx, z - sz), ph = fr(t * 0.15 + p / 5) * 2.5; y += 0.12 * sin((d - ph) * 14) * exp(-pow((d - ph) * 3, 2)); }
+    set(o, x, y - 0.3, z); o.w = abs(y) * 6; o.s = 0.35 + abs(y) * 9; if (R.d[i] < 0.08) { set(o, x * 0.8, 0.1 + fr(R.b[i] + t * 0.05) * 0.8, z * 0.8); o.s = 1.4; o.w = 0.7; o.hue = 0.6; } },
   knot(i, N, R, t, o) { const u = R.a[i] * TAU; const x = sin(u) + 2 * sin(2 * u), y = cos(u) - 2 * cos(2 * u), z = -sin(3 * u); const tube = 0.12 * sqrt(R.b[i]), th = R.c[i] * TAU;
     set(o, (x + cos(th) * tube * 3) * 0.3, (y + sin(th) * tube * 3) * 0.3, z * 0.3 + tube * cos(th)); o.w = 0.8 * pow(max(0, sin(u * 3 - t * 2)), 10); },
-  galaxy(i, N, R, t, o) { const arm = floor(R.a[i] * 3), r = pow(R.b[i], 0.6) * 0.95, th = arm / 3 * TAU + r * 4.5 + t * 0.25 / (0.3 + r); const sp = 0.08 * (1 - r * 0.4);
+  galaxy(i, N, R, t, o) { const arm = floor(R.a[i] * 3), r = pow(R.b[i], 0.6) * 0.95, th = arm / 3 * TAU + r * 4.5 + t * 0.25 / (0.3 + r); const sp = 0.035 * (1 - r * 0.4);
+    if (R.c[i] < 0.12) { const [bx, by, bz] = sph(R.a[i], R.d[i]); const br = 0.14 * sqrt(R.b[i]); set(o, bx * br, by * br * 0.6, bz * br); o.w = 1; o.s = 1.2; return; } // bright bulge
     set(o, cos(th) * r + (R.c[i] - .5) * sp, (R.d[i] - .5) * 0.06 * (1 - r), sin(th) * r + (R.d[i] - .5) * sp); o.w = 1 - r; o.s = 0.6 + (1 - r); },
   fractal(i, N, R, t, o, T) { const s = treePt(T, i, R, t, o, 0.1); o.hue = 0.72 + s.d * 0.03; o.w = s.d / T.maxD * 0.6; },
   mandala(i, N, R, t, o) { const ring = floor(R.a[i] * 5), k = [3, 5, 8, 12, 16][ring], th = R.b[i] * TAU; const base = 0.15 + ring * 0.17; const r = base + 0.07 * abs(cos(k * th / 2)); const sp = t * 0.25 * (ring % 2 ? 1 : -1);
@@ -213,8 +214,8 @@ export const FORMS = {
   // ---------------- AIR
   breath(i, N, R, t, o) { const br = sin(t * 0.9); const Rr = 0.55 + 0.18 * br, r = 0.25 + 0.06 * br; const u = R.a[i] * TAU, v = R.b[i] * TAU + t * 1.2 * Math.sign(cos(t * 0.9) + 0.0001);
     set(o, (Rr + r * cos(v)) * cos(u), r * sin(v) * 1.4, (Rr + r * cos(v)) * sin(u)); o.s = 0.8; o.w = 0.3 + 0.3 * br; },
-  wind(i, N, R, t, o) { const x = fr(R.a[i] + t * 0.22 * (0.6 + R.d[i])) * 2.4 - 1.2; const y = (R.b[i] - .5) * 1.4 + 0.18 * sin(x * 3 + t + R.b[i] * 5), z = (R.c[i] - .5) * 1.2 + 0.1 * cos(x * 2 + t);
-    set(o, x, y, z); o.s = 0.9 * sin(PI * (x + 1.2) / 2.4); o.w = 0.3; },
+  wind(i, N, R, t, o) { const lane = floor(R.b[i] * 7); const x = fr(R.a[i] + t * 0.22 * (0.6 + R.d[i])) * 2.4 - 1.2; const y = (lane / 6 - 0.5) * 1.3 + (R.c[i] - .5) * 0.04 + 0.18 * sin(x * 3 + t + lane * 0.9), z = (lane % 3 - 1) * 0.35 + 0.1 * cos(x * 2 + t);
+    set(o, x, y, z); o.s = 1.0 * sin(PI * (x + 1.2) / 2.4); o.w = 0.3; }, // seven streamlines
   lungs(i, N, R, t, o, T) { const br = 1 + 0.12 * sin(t * 0.9);
     if (R.a[i] < 0.45) { treePt(T, i, R, t, o, 0, false); o.x *= br; o.z *= br; o.w = 0.5; return; }
     if (R.a[i] < 0.5) { set(o, 0, 0.55 + R.b[i] * 0.4, 0); o.w = 0.5; return; }
@@ -231,23 +232,23 @@ export const FORMS = {
   pulse(i, N, R, t, o) { const k = floor(R.a[i] * 4), r = fr(t * 0.35 + k / 4) * 1.1; const [x, y, z] = sph(R.b[i], R.c[i]); set(o, x * r, y * r, z * r); o.s = 1.4 * (1 - r / 1.1); o.w = 0.4 * (1 - r); },
   // ---------------- LIGHT
   radiance(i, N, R, t, o) { const n = 56, k = floor(R.a[i] * n); const d = sph(fr(k * 0.618), (k + 0.5) / n); const r = 0.1 + fr(R.b[i] + t * 0.35) * 1.0; set(o, d[0] * r, d[1] * r, d[2] * r); o.s = 1.6 * (1 - r * 0.7); o.w = 0.9 * (1 - r); if (R.d[i] < 0.15) { const [x, y, z] = sph(R.b[i], R.c[i]); set(o, x * 0.12, y * 0.12, z * 0.12); o.w = 1; o.s = 1.6; } },
-  afterglow(i, N, R, t, o) { const [x, y, z] = sph(R.a[i], R.b[i]); const r = (0.25 + 0.7 * pow(R.c[i], 0.5)) * (1 - 0.3 * fr(t * 0.05 + R.d[i])); set(o, x * r, y * r, z * r);
-    o.s = 1.6 * (1 - r) * (0.6 + 0.4 * sin(t * 0.7 + R.d[i] * 9)); o.w = 0.7; },
+  afterglow(i, N, R, t, o) { if (R.a[i] < 0.25) { const [x, y, z] = sph(R.b[i], R.c[i]); const r = 0.16 * sqrt(R.d[i]); set(o, x * r, y * r, z * r); o.s = 1.3; o.w = 0.9; return; } // bright source …
+    const k = floor(R.a[i] * 4) % 4, u = fr(t * 0.1 + k / 4); const [x, y, z] = sph(R.b[i], R.c[i]); const r = 0.2 + u * 0.8; set(o, x * r, y * r, z * r); o.s = 1.2 * pow(1 - u, 1.5); o.w = 0.6 * (1 - u); }, // … leaving nested after-image shells that expand and fade
   eclipse(i, N, R, t, o) { const th = R.a[i] * TAU; if (R.b[i] < 0.5) { const r = 0.42 + 0.03 * R.c[i]; set(o, cos(th) * r, sin(th) * r, 0); o.w = 1; o.s = 1.2; if (abs(th - fr(t * 0.05) * TAU) < 0.06) o.s = 3; return; }
     const ray = floor(R.a[i] * 30) / 30 * TAU; const r = 0.45 + pow(R.c[i], 2) * 0.6 * (0.7 + 0.3 * sin(ray * 5 + t * 0.6)); set(o, cos(ray + (R.d[i] - .5) * 0.08) * r, sin(ray + (R.d[i] - .5) * 0.08) * r, 0); o.s = 1 - (r - 0.45) * 1.4; o.w = 0.5; },
-  clearLight(i, N, R, t, o) { const [x, y, z] = sph(R.a[i], R.b[i]); const r = pow(R.c[i], 0.33) * 0.95; set(o, x * r, y * r, z * r); o.s = 1.0 + 0.3 * sin(t * 0.4 + R.d[i] * 6); o.w = 0.85; o.hue = 0.58; },
+  clearLight(i, N, R, t, o) { const [x, y, z] = sph(R.a[i], R.b[i]); const rim = R.c[i] < 0.45; const r = rim ? 0.95 : pow(R.c[i], 0.33) * 0.9; set(o, x * r, y * r, z * r); o.s = rim ? 0.9 : 0.8 + 0.3 * sin(t * 0.4 + R.d[i] * 6); o.w = rim ? 0.95 : 0.7; o.hue = 0.58; },
   rainbow(i, N, R, t, o) { const band = floor(R.a[i] * 7), r = 0.45 + band * 0.07 + R.d[i] * 0.05, th = R.b[i] * PI; set(o, cos(th) * r, sin(th) * r - 0.4, (R.c[i] - .5) * 0.08 + 0.03 * sin(t + th * 4)); o.hue = band / 8; o.w = 0.15; o.s = 1.0 + 0.3 * sin(t * 2 + th * 6); },
   dawn(i, N, R, t, o) { const rise = 0.5 + 0.5 * sin(t * 0.25); if (R.a[i] < 0.4) { const th = R.b[i] * PI, r = 0.35 * sqrt(R.c[i]); set(o, cos(th) * r, -0.4 + rise * 0.3 + sin(th) * r * 0.9, 0); o.hue = 0.08; o.w = 0.6; return; }
     if (R.a[i] < 0.6) { set(o, R.b[i] * 2.2 - 1.1, -0.4 + (R.c[i] - .5) * 0.04, (R.d[i] - .5) * 0.5); o.hue = 0.04; o.w = 0.4; return; }
     const k = floor(R.b[i] * 15), th = (k + 0.5) / 15 * PI, r = 0.4 + fr(R.c[i] + t * 0.2) * 0.7; set(o, cos(th) * r, -0.4 + rise * 0.3 + sin(th) * r, 0); o.s = 1 - (r - 0.4); o.hue = 0.1; o.w = 0.5; },
-  aurora(i, N, R, t, o) { const x = R.a[i] * 2 - 1, h = pow(R.b[i], 1.5); const z = 0.3 * sin(x * 3 + t * 0.5) + 0.1 * sin(x * 7 - t * 0.8); set(o, x, -0.5 + h * 1.2 + 0.05 * sin(x * 10 + t), z + 0.03 * sin(h * 8));
-    o.hue = 0.38 + 0.4 * h; o.s = (1 - h * 0.6) * (0.7 + 0.5 * pow(max(0, sin(x * 9 - t * 2)), 4)); o.w = 0.1; },
+  aurora(i, N, R, t, o) { const x = (floor(R.a[i] * 44) + R.d[i] * 0.35) / 44 * 2 - 1, h = pow(R.b[i], 1.3); const z = 0.3 * sin(x * 3 + t * 0.5) + 0.1 * sin(x * 7 - t * 0.8); set(o, x, -0.5 + h * 1.25 + 0.05 * sin(x * 10 + t), z + 0.03 * sin(h * 8));
+    o.hue = 0.38 + 0.4 * h; o.s = (1.3 - h * 0.7) * (0.8 + 0.6 * pow(max(0, sin(x * 9 - t * 2)), 4)); o.w = 0.15; }, // vertical rays of light curtains
   halo(i, N, R, t, o) { const k = floor(R.a[i] * 5), th = R.b[i] * TAU, r = 0.35 + k * 0.13; const tilt = k * 0.6 + t * 0.15 * (k % 2 ? 1 : -1); const x = cos(th) * r, y0 = sin(th) * r;
     set(o, x, y0 * cos(tilt), y0 * sin(tilt)); o.w = 0.5 + 0.5 * pow(max(0, cos(th - t * (k + 1) * 0.4)), 12); o.s = 0.8; },
 };
 
 // forms that live in a horizontal plane are tilted toward the viewer (radians about local x)
-export const TILT = { galaxy: 1.15, mandala: 1.2, nada: 1.1, dream: 0.6, torus: 0.7, breath: 0.6, waves: 0.35, sky: 0.15, mitosis: 0, eclipse: 0, magnet: 0.2 };
+export const TILT = { galaxy: 1.15, mandala: 1.2, nada: 1.1, dream: 0.95, torus: 0.7, breath: 0.6, waves: 0.35, sky: 0.15, mitosis: 0, eclipse: 0, magnet: 0.2 };
 
 // ---------------- transitional / climax forms used by the emanation chains (v2)
 Object.assign(FORMS, {
