@@ -52,9 +52,9 @@ const pix = { value: 1 };
 function updatePix() { pix.value = renderer.domElement.height / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2))); }
 updatePix();
 const PVS = `
-uniform float uSize, uOpacity, uTime, uPix, uCollapse, uTwinkle; uniform vec3 uTarget;
+uniform float uSize, uOpacity, uTime, uPix, uCollapse, uTwinkle, uShape; uniform vec3 uTarget;
 attribute float aSize; attribute float aRand; attribute vec3 aColor;
-varying vec3 vColor; varying float vAlpha;
+varying vec3 vColor; varying float vAlpha; varying float vR; varying vec2 vDir;
 void main(){
   vec3 p = position; vAlpha = 1.0;
   if (uCollapse > 0.0) {
@@ -68,21 +68,39 @@ void main(){
   vColor = aColor;
   vec4 mv = modelViewMatrix * vec4(p, 1.0);
   float tw = 1.0 + uTwinkle * 0.6 * sin(uTime * 2.3 + aRand * 60.0);
+  vR = aRand; vDir = vec2(1.0, 0.0);
+  if (uShape > 3.5 && uShape < 4.5) { float ph = fract(uTime * 1.1); tw *= 1.0 + 0.45 * exp(-pow((ph - 0.08) * 22.0, 2.0)) + 0.3 * exp(-pow((ph - 0.3) * 22.0, 2.0)); } // lub-dub heartbeat
+  if (uShape > 7.5 && uShape < 8.5) tw *= 0.55 + 0.9 * pow(0.5 + 0.5 * sin(uTime * (1.5 + aRand * 3.0) + aRand * 40.0), 6.0); // star twinkle
+  if (uShape > 6.5 && uShape < 7.5) { vec3 tg = normalize(vec3(-p.z, 0.0, p.x) + 1e-4); vec4 c0 = projectionMatrix * mv; vec4 c1 = projectionMatrix * (modelViewMatrix * vec4(p + tg * 2.0, 1.0)); vec2 d = c1.xy / c1.w - c0.xy / c0.w; vDir = length(d) > 1e-6 ? normalize(d) : vec2(1.0, 0.0); }
   gl_PointSize = clamp(uSize * aSize * tw * uPix / -mv.z, 0.0, 90.0);
+  if (uShape > 8.5) gl_PointSize = max(gl_PointSize, 1.6);
   gl_Position = projectionMatrix * mv;
 }`;
 const PFS = `
-uniform float uOpacity; varying vec3 vColor; varying float vAlpha;
+uniform float uOpacity, uShape; varying vec3 vColor; varying float vAlpha; varying float vR; varying vec2 vDir;
+vec3 spectrum(float h) { return clamp(abs(mod(h * 6.0 + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0); }
+mat2 rot(float a) { float c = cos(a), s = sin(a); return mat2(c, -s, s, c); }
 void main(){
-  float d = length(gl_PointCoord - 0.5);
-  float a = smoothstep(0.5, 0.0, d); a *= a;
-  float core = smoothstep(0.18, 0.0, d);
-  gl_FragColor = vec4(vColor * (a + core * 0.6), a * uOpacity * vAlpha);
+  vec2 q = gl_PointCoord - 0.5; q.y = -q.y; float d = length(q);
+  float a, core; vec3 col = vColor;
+  if (uShape < 0.5) { a = smoothstep(0.5, 0.0, d); a *= a; core = smoothstep(0.18, 0.0, d); }
+  else if (uShape < 1.5) { vec2 r = rot(vR * 6.283) * q; float m = max(abs(r.x) * 0.87 + abs(r.y) * 0.5, abs(r.y)); a = smoothstep(0.36, 0.3, m); // hexagonal crystal grain
+    core = a * (0.25 + 0.6 * step(0.0, r.x + r.y * 0.6)); }  // lit facet
+  else if (uShape < 2.5) { a = smoothstep(0.42, 0.3, d) * 0.55; float rim = smoothstep(0.08, 0.0, abs(d - 0.34)); float hl = smoothstep(0.1, 0.0, length(q - vec2(-0.11, 0.12))); a = max(a, rim); core = rim * 0.6 + hl * 1.2; col = mix(vColor, vec3(0.85, 0.95, 1.0), rim * 0.5); } // droplet with refraction rim
+  else if (uShape < 3.5) { float y = q.y; float w = y < -0.1 ? sqrt(max(0.0, 0.05 - (y + 0.1) * (y + 0.1))) : 0.224 * (1.0 - (y + 0.1) / 0.52); a = smoothstep(w, w - 0.07, abs(q.x)) * step(-0.33, y); // teardrop ember
+    core = smoothstep(0.16, 0.0, length(q - vec2(0.0, -0.12))); col = mix(vColor, vec3(1.0, 0.95, 0.6), core); }
+  else if (uShape < 4.5) { a = smoothstep(0.5, 0.18, d); a = a * a; core = smoothstep(0.2, 0.0, d) * 0.9; } // warm pulsing glow
+  else if (uShape < 5.5) { a = smoothstep(0.06, 0.0, abs(d - 0.36)) * 0.8; core = 0.0; } // hollow ring
+  else if (uShape < 6.5) { vec2 r = rot(vR * 6.283) * q; a = exp(-abs(r.y) * 38.0) * smoothstep(0.5, 0.1, abs(r.x)) + exp(-abs(r.x) * 38.0) * smoothstep(0.5, 0.3, abs(r.y)) * 0.5; core = smoothstep(0.08, 0.0, d) * 1.5; } // filament spark
+  else if (uShape < 7.5) { vec2 r = vec2(dot(q, vDir), dot(q, vec2(-vDir.y, vDir.x))); a = exp(-r.y * r.y * 260.0) * smoothstep(0.5, 0.0, abs(r.x)) * (0.6 + 0.4 * smoothstep(-0.5, 0.5, r.x)); core = exp(-r.y * r.y * 900.0) * smoothstep(0.2, 0.0, abs(r.x - 0.15)) * 0.6; } // streaked wisp
+  else if (uShape < 8.5) { vec2 r = rot(vR * 0.8) * q; float st = exp(-abs(r.x) * 40.0) + exp(-abs(r.y) * 40.0) + 0.5 * (exp(-abs(r.x + r.y) * 30.0) + exp(-abs(r.x - r.y) * 30.0)); a = clamp(st * smoothstep(0.5, 0.0, d), 0.0, 1.0); core = smoothstep(0.1, 0.0, d) * 1.4; col = mix(vColor, spectrum(fract(vR + d * 2.4)), 0.55 * smoothstep(0.05, 0.3, d)); } // prismatic star
+  else { a = smoothstep(0.5, 0.32, d); core = smoothstep(0.22, 0.0, d) * 0.5; } // crisp point
+  gl_FragColor = vec4(col * (a + core * 0.6), a * uOpacity * vAlpha);
 }`;
 const allPointMats = [];
 function pointMat(size = 1, opacity = 1, twinkle = 0) {
   const m = new THREE.ShaderMaterial({
-    uniforms: { uSize: { value: size }, uOpacity: { value: opacity }, uTime: { value: 0 }, uPix: pix, uCollapse: { value: 0 }, uTwinkle: { value: twinkle }, uTarget: { value: new THREE.Vector3() } },
+    uniforms: { uSize: { value: size }, uOpacity: { value: opacity }, uTime: { value: 0 }, uPix: pix, uCollapse: { value: 0 }, uTwinkle: { value: twinkle }, uShape: { value: 0 }, uTarget: { value: new THREE.Vector3() } },
     vertexShader: PVS, fragmentShader: PFS, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
   });
   m.userData.base = opacity; allPointMats.push(m); return m;
@@ -126,16 +144,24 @@ function glowTex(color = '#ffffff', hard = 0.15) {
   x.fillStyle = g; x.fillRect(0, 0, 128, 128);
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; texCache.set(k, t); return t;
 }
-function bijaTex(bija, color) {
+function bijaTex(bija, color, shape = null) {
   const c = document.createElement('canvas'); c.width = c.height = 256; const x = c.getContext('2d');
   const g = x.createRadialGradient(128, 128, 10, 128, 128, 128);
   g.addColorStop(0, color + 'aa'); g.addColorStop(0.45, color + '33'); g.addColorStop(1, color + '00');
   x.fillStyle = g; x.fillRect(0, 0, 256, 256);
-  x.strokeStyle = color; x.lineWidth = 6; x.shadowColor = color; x.shadowBlur = 18; x.beginPath(); x.arc(128, 128, 84, 0, TAU); x.stroke();
-  x.lineWidth = 2; x.beginPath(); x.arc(128, 128, 96, 0, TAU); x.stroke();
-  x.shadowColor = '#ffb020'; x.shadowBlur = 16; x.fillStyle = GOLD; x.textAlign = 'center'; x.textBaseline = 'middle';
-  x.font = `bold 92px ${DEVA}`; x.fillText(bija, 128, 136);
-  x.shadowBlur = 0; x.fillStyle = '#fff6d8'; x.fillText(bija, 128, 136);
+  x.strokeStyle = color; x.lineWidth = 6; x.shadowColor = color; x.shadowBlur = 18; x.lineJoin = 'round';
+  const poly = (n, r, rot = -Math.PI / 2) => { x.beginPath(); for (let i = 0; i <= n; i++) { const a = rot + i / n * TAU; x[i ? 'lineTo' : 'moveTo'](128 + Math.cos(a) * r, 128 + Math.sin(a) * r); } x.stroke(); };
+  const star = (n, r1, r2) => { x.beginPath(); for (let i = 0; i <= n * 2; i++) { const a = -Math.PI / 2 + i / (n * 2) * TAU, r = i % 2 ? r2 : r1; x[i ? 'lineTo' : 'moveTo'](128 + Math.cos(a) * r, 128 + Math.sin(a) * r); } x.stroke(); };
+  // node geometry per element (interpretive, after the elemental yantra shapes: earth square, water circle/crescent, fire triangle, air hexagram)
+  if (shape === 'earth') { x.strokeRect(128 - 70, 128 - 70, 140, 140); x.lineWidth = 2; x.strokeRect(128 - 84, 128 - 84, 168, 168); }
+  else if (shape === 'water') { x.beginPath(); x.arc(128, 128, 84, 0, TAU); x.stroke(); x.lineWidth = 3; x.beginPath(); x.arc(128, 150, 56, Math.PI * 0.12, Math.PI * 0.88); x.stroke(); }
+  else if (shape === 'fire') { poly(3, 92); x.lineWidth = 2; poly(3, 104); }
+  else if (shape === 'desire') { x.beginPath(); for (let i = 0; i < 8; i++) { const a = i / 8 * TAU; x.moveTo(128 + Math.cos(a) * 56, 128 + Math.sin(a) * 56); x.quadraticCurveTo(128 + Math.cos(a + 0.39) * 108, 128 + Math.sin(a + 0.39) * 108, 128 + Math.cos(a + 0.785) * 56, 128 + Math.sin(a + 0.785) * 56); } x.stroke(); x.lineWidth = 2; x.beginPath(); x.arc(128, 128, 56, 0, TAU); x.stroke(); } // eight-petal lotus
+  else if (shape === 'ether') { x.lineWidth = 3; x.setLineDash([6, 10]); x.beginPath(); x.arc(128, 128, 88, 0, TAU); x.stroke(); x.setLineDash([]); x.lineWidth = 2; x.beginPath(); x.arc(128, 128, 72, 0, TAU); x.stroke(); } // open, dotted circle
+  else if (shape === 'mind') { poly(6, 86, 0); x.lineWidth = 2; for (let i = 0; i < 6; i++) { const a = i / 6 * TAU; x.beginPath(); x.moveTo(128 + Math.cos(a) * 86, 128 + Math.sin(a) * 86); x.lineTo(128 + Math.cos(a) * 104, 128 + Math.sin(a) * 104); x.stroke(); x.beginPath(); x.arc(128 + Math.cos(a) * 108, 128 + Math.sin(a) * 108, 4, 0, TAU); x.stroke(); } } // hexagon with synapse terminals
+  else if (shape === 'air') { poly(3, 90); poly(3, 90, Math.PI / 2); } // hexagram
+  else if (shape === 'light') { star(8, 104, 70); x.lineWidth = 2; x.beginPath(); x.arc(128, 128, 60, 0, TAU); x.stroke(); }
+  else { x.beginPath(); x.arc(128, 128, 84, 0, TAU); x.stroke(); x.lineWidth = 2; x.beginPath(); x.arc(128, 128, 96, 0, TAU); x.stroke(); }
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
 }
 function starTex() {
@@ -145,18 +171,61 @@ function starTex() {
   x.fillStyle = g; x.beginPath(); for (let i = 0; i < 8; i++) { const r = i % 2 ? 9 : 62, a = i / 8 * TAU; x.lineTo(Math.cos(a) * r, Math.sin(a) * r); } x.fill();
   const t = new THREE.CanvasTexture(c); texCache.set('star', t); return t;
 }
+// ---- HTML overlay labels: crisp at any zoom, never bloomed, de-overlapped in screen space
+const labelLayer = document.getElementById('labels3d');
 const labels = [];
-function makeLabel(top, bottom, color = GOLD, h = 14) {
-  const c = document.createElement('canvas'); const x = c.getContext('2d');
-  const f1 = `600 64px ${DEVA}`, f2 = `500 34px Inter, sans-serif`;
-  x.font = f1; const w1 = top ? x.measureText(top).width : 0; x.font = f2; const w2 = bottom ? x.measureText(bottom).width : 0;
-  c.width = Math.ceil(Math.max(w1, w2) + 40); c.height = bottom && top ? 130 : 84;
-  x.textAlign = 'center'; x.textBaseline = 'middle'; x.shadowColor = color; x.shadowBlur = 14;
-  if (top) { x.font = f1; x.fillStyle = color; x.fillText(top, c.width / 2, 46); }
-  if (bottom) { x.font = f2; x.fillStyle = '#e8ecff'; x.shadowBlur = 6; x.fillText(bottom, c.width / 2, top ? 108 : 44); }
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
-  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, transparent: true, depthWrite: false, opacity: 0.95 }));
-  s.material.userData.base = 0.95; s.scale.set(h * c.width / c.height, h, 1); s.userData.isLabel = true; s.renderOrder = 5; labels.push(s); return s;
+class HLabel extends THREE.Object3D {
+  constructor(top, bottom, color, h, opts = {}) {
+    super(); this.isHLabel = true; this.h = h; this.opts = opts; this.orphan = 0;
+    const el = document.createElement('div'); el.className = 'l3' + (opts.bija ? ' bija' : '') + (opts.title ? ' title' : '');
+    const px = opts.px || Math.round(Math.min(18, Math.max(12, 10 + h * 0.4)));
+    el.style.setProperty('--c', color); el.style.fontSize = px + 'px';
+    const dev = /[\u0900-\u097F]/.test(top || '');
+    el.innerHTML = `<i class="lead"></i><div class="box">${top ? `<div class="t${dev ? ' dev' : ''}">${top}</div>` : ''}${bottom ? `<div class="b">${bottom}</div>` : ''}</div>`;
+    this.el = el; this.lead = el.firstChild; this.box = el.lastChild; labelLayer.appendChild(el);
+    this.material = { opacity: 0.95, userData: { base: 0.95 }, rotation: 0, depthTest: true };
+    this.userData.isLabel = true; this.w = 0; this.hh = 0; this.shown = false; this.css = '';
+    this.maxDist = opts.maxDist || h * 130;
+  }
+}
+function makeLabel(top, bottom, color = GOLD, h = 14, opts) { const l = new HLabel(top, bottom, color, h, opts); labels.push(l); return l; }
+function makeBija(bija) { const l = new HLabel(bija, '', GOLD, 15, { bija: true }); labels.push(l); return l; }
+const _lv = new THREE.Vector3(), _lc = new THREE.Vector3(); const _placed = [];
+function sceneOf(o) { while (o.parent) o = o.parent; return o; }
+function effVisible(o) { for (let p = o; p; p = p.parent) if (!p.visible) return false; return true; }
+function updateLabels(sc) {
+  const W = innerWidth, H = innerHeight, f = H / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2))); _placed.length = 0; const cand = [];
+  for (let i = labels.length - 1; i >= 0; i--) { const l = labels[i];
+    if (!l.parent) { if (++l.orphan > 2) { l.el.remove(); labels.splice(i, 1); } else if (l.shown) { l.el.style.display = 'none'; l.shown = false; } continue; }
+    l.orphan = 0;
+    let show = sceneOf(l) === sc && effVisible(l) && l.material.opacity > 0.03 && (l.opts.bija || state.labels);
+    if (show) { l.getWorldPosition(_lv); const dist = _lv.distanceTo(camera.position); _lc.copy(_lv).project(camera);
+      if (_lc.z > 1 || _lc.z < -1 || (!l.opts.bija && dist > l.maxDist)) show = false;
+      else { l.sx = (_lc.x + 1) / 2 * W; l.sy = (1 - _lc.y) / 2 * H; l.dist = dist;
+        if (l.opts.bija) { const ps = (l.parent.scale.x || 15) * f / dist * 0.4; if (ps < 7) show = false; else l.px = Math.min(64, ps); }
+        if (show) cand.push(l); } }
+    if (!show && l.shown) { l.el.style.display = 'none'; l.shown = false; } }
+  cand.sort((a, b) => (b.opts.bija ? 1 : 0) - (a.opts.bija ? 1 : 0) || (b.opts.prio || 0) - (a.opts.prio || 0) || b.h - a.h || a.dist - b.dist);
+  for (const l of cand) {
+    if (!l.shown) { l.el.style.display = 'block'; l.shown = true; }
+    if (l.opts.bija) { const fs = Math.round(l.px); if (fs !== l.fs) { l.el.style.fontSize = fs + 'px'; l.fs = fs; l.w = 0; } }
+    if (!l.w) { l.w = l.box.offsetWidth; l.hh = l.box.offsetHeight; }
+    let dy = 0, ok = true;
+    if (!l.opts.bija) { ok = false; const x0 = l.sx - l.w / 2;
+      for (const k of [0, -1, 1, -2, 2, -3, 3]) { const y0 = l.sy - l.hh / 2 + k * (l.hh + 3); let hit = false;
+        for (const r of _placed) if (x0 < r[2] && x0 + l.w > r[0] && y0 < r[3] && y0 + l.hh > r[1]) { hit = true; break; }
+        if (!hit) { dy = k * (l.hh + 3); _placed.push([x0 - 2, y0 - 1, x0 + l.w + 2, y0 + l.hh + 1]); ok = true; break; } } }
+    if (!ok) { l.el.style.display = 'none'; l.shown = false; l.css = ''; continue; } // collided after nudging: hide rather than overlap
+    const fade = l.opts.bija ? 1 : 1 - THREE.MathUtils.smoothstep(l.dist, l.maxDist * 0.8, l.maxDist);
+    const op = ok ? Math.min(1, l.material.opacity / 0.95) * fade : 0;
+    const css = `translate(${l.sx.toFixed(1)}px,${l.sy.toFixed(1)}px)|${op.toFixed(2)}|${dy}|${l.material.rotation ? 1 : 0}`;
+    if (css !== l.css) { l.css = css; l.el.style.transform = `translate(${l.sx.toFixed(1)}px,${l.sy.toFixed(1)}px)`; l.el.style.opacity = op.toFixed(2);
+      l.box.style.transform = `translate(-50%, calc(-50% + ${dy}px))${l.material.rotation ? ' rotate(180deg)' : ''}`;
+      if (dy) { l.lead.style.display = 'block'; l.lead.style.top = (dy < 0 ? dy + l.hh / 2 : 0) + 'px'; l.lead.style.height = Math.max(0, Math.abs(dy) - l.hh / 2) + 'px'; } else l.lead.style.display = 'none'; }
+    if (l.userData.type && !l.bound) { l.bound = true; l.el.classList.add('click'); l.box.onclick = () => activate(l);
+      l.box.onmouseenter = (ev) => { const d = describe(l); if (d) { tip.style.display = 'block'; tip.innerHTML = d; tip.style.left = ev.clientX + 14 + 'px'; tip.style.top = ev.clientY + 12 + 'px'; } };
+      l.box.onmouseleave = () => { tip.style.display = 'none'; }; }
+    l.el.style.pointerEvents = 'none'; }
 }
 function glowSprite(color, size, opacity = 1, hard) {
   const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex(color, hard), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity }));
@@ -400,6 +469,32 @@ const bloomRays = makePoints(2200, 2.2, 0, 0); emanation.add(bloomRays);
 { const a = bloomRays.geometry.attributes.aColor.array; for (let i = 0; i < 2200; i++) { const c = col(D.FAMILIES[i % 5].color); a.set([c.r, c.g, c.b], i * 3); } }
 
 // ------------------------------------------------------------------ eight elemental fields + 64 shaktis
+// particle signatures (interpretive visual language, not doctrine): shape id matches the point shader's uShape
+const FIELD_SIG = {
+  earth: { n: 1300, size: 0.75, op: 0.6, tw: 0, shape: 1, k0: 0.55, mShape: 1, mSize: 0.36 },  // dense angular crystalline grains, still
+  water: { n: 520, size: 1.8, op: 0.55, tw: 0.2, shape: 2, k0: 0.5, mShape: 2, mSize: 0.44 },  // round droplets with a refraction rim, dripping and rippling
+  fire: { n: 480, size: 2.0, op: 0.7, tw: 0.4, shape: 3, k0: 0.6, mShape: 3, mSize: 0.46 },    // teardrop embers rising and flickering
+  desire: { n: 420, size: 2.3, op: 0.42, tw: 0, shape: 4, k0: 0.55, mShape: 4, mSize: 0.42 },  // warm glow pulsing in a heartbeat rhythm
+  ether: { n: 110, size: 3.4, op: 0.3, tw: 0, shape: 5, k0: 0.6, mShape: 5, mSize: 0.85, mGain: 1.9 },     // sparse hollow rings, near-invisible, slowly turning
+  mind: { n: 300, size: 1.8, op: 0.65, tw: 0.3, shape: 6, k0: 0.6, mShape: 6, mSize: 0.6, mGain: 1.6 },   // fine filament sparks with flickering synaptic links
+  air: { n: 460, size: 2.8, op: 0.45, tw: 0, shape: 7, k0: 0.5, mShape: 7, mSize: 0.72, mGain: 1.7 },      // streaked wisps swirling around the field
+  light: { n: 260, size: 2.5, op: 0.75, tw: 0, shape: 8, k0: 0.7, mShape: 8, mSize: 0.62, mGain: 1.5 },    // prismatic star-points that twinkle
+};
+function updateAuras(t) {
+  for (const fo of fieldObjs) { const au = fo.aura; if (!au.visible) continue; const B = au.userData.base, key = au.userData.key; const P = au.geometry.attributes.position.array; const n = B.length / 4; let moved = true;
+    if (key === 'earth') moved = false;
+    else if (key === 'water') for (let i = 0; i < n; i++) { const x = B[i * 4], z = B[i * 4 + 2], r = Math.hypot(x, z), q = B[i * 4 + 3]; const drop = ((q * 20 + t * 3.2) % 20); P[i * 3] = x * (1 + 0.03 * Math.sin(r * 0.35 - t * 2.2)); P[i * 3 + 2] = z * (1 + 0.03 * Math.sin(r * 0.35 - t * 2.2)); P[i * 3 + 1] = 9 - drop + Math.sin(r * 0.4 - t * 2.2) * 0.8; }
+    else if (key === 'fire') for (let i = 0; i < n; i++) { const q = B[i * 4 + 3]; const u = (q + t * 0.22) % 1; P[i * 3] = B[i * 4] * (1 - u * 0.35) + Math.sin(t * 7 + q * 50) * 0.6; P[i * 3 + 2] = B[i * 4 + 2] * (1 - u * 0.35) + Math.cos(t * 6 + q * 40) * 0.6; P[i * 3 + 1] = -8 + u * 30; }
+    else if (key === 'desire') { const ph = (t * 1.1) % 1; const beat = 1 + 0.12 * Math.exp(-Math.pow((ph - 0.08) * 22, 2)) + 0.07 * Math.exp(-Math.pow((ph - 0.3) * 22, 2)); for (let i = 0; i < n; i++) { P[i * 3] = B[i * 4] * beat; P[i * 3 + 1] = B[i * 4 + 1] * beat; P[i * 3 + 2] = B[i * 4 + 2] * beat; } }
+    else if (key === 'ether') { const a = t * 0.05, c = Math.cos(a), s = Math.sin(a); for (let i = 0; i < n; i++) { const x = B[i * 4], z = B[i * 4 + 2]; P[i * 3] = x * c - z * s; P[i * 3 + 2] = x * s + z * c; P[i * 3 + 1] = B[i * 4 + 1] + Math.sin(t * 0.3 + B[i * 4 + 3] * 6) * 1.5; } }
+    else if (key === 'mind') { for (let i = 0; i < n; i++) { const q = B[i * 4 + 3]; const k = Math.floor(t * 2.5 + q * 7); const j1 = Math.sin(k * 12.9898 + i * 78.233) * 43758.5453, j = j1 - Math.floor(j1); P[i * 3] = B[i * 4] + (j - 0.5) * 1.6; P[i * 3 + 1] = B[i * 4 + 1] + (((j * 7.13) % 1) - 0.5) * 1.6; P[i * 3 + 2] = B[i * 4 + 2] + (((j * 3.71) % 1) - 0.5) * 1.6; }
+      if (fo.links) { const L = fo.links, pr = L.userData.pairs, LP = L.geometry.attributes.position.array, LC = L.geometry.attributes.color.array, cc = au.userData.col;
+        for (let k = 0; k < pr.length; k++) { const i = pr[k]; LP[k * 3] = P[i * 3]; LP[k * 3 + 1] = P[i * 3 + 1]; LP[k * 3 + 2] = P[i * 3 + 2]; const f = Math.pow(Math.max(0, Math.sin(t * 3 + (k >> 1) * 1.7)), 8); LC[k * 3] = cc.r * f; LC[k * 3 + 1] = cc.g * f; LC[k * 3 + 2] = cc.b * f; }
+        L.geometry.attributes.position.needsUpdate = L.geometry.attributes.color.needsUpdate = true; } }
+    else if (key === 'air') for (let i = 0; i < n; i++) { const x = B[i * 4], z = B[i * 4 + 2], r = Math.hypot(x, z), q = B[i * 4 + 3]; const a = Math.atan2(z, x) + t * (14 / (r + 6)); P[i * 3] = Math.cos(a) * r; P[i * 3 + 2] = Math.sin(a) * r; P[i * 3 + 1] = B[i * 4 + 1] + Math.sin(a * 2 + q * 6) * 2.5; }
+    else moved = false;
+    if (moved) au.geometry.attributes.position.needsUpdate = true; }
+}
 const FIELD_R = 330, FIELD_Y = 100, NODE_R = 30;
 const fieldObjs = []; const shaktiSprites = []; const pickables = [];
 D.FIELDS.forEach((F, fi) => {
@@ -412,17 +507,29 @@ D.FIELDS.forEach((F, fi) => {
   const spokes = [];
   for (let j = 0; j < 8; j++) {
     const s = D.SHAKTIS[fi * 8 + j]; const b = j / 8 * TAU + a;
-    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: bijaTex(s.bija, F.color), transparent: true, depthWrite: false, opacity: 1 }));
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: bijaTex(s.bija, F.color, F.key), transparent: true, depthWrite: false, opacity: 1 }));
     sp.material.userData.base = 1; sp.scale.setScalar(15); sp.position.set(Math.cos(b) * NODE_R, 0, Math.sin(b) * NODE_R); sp.userData = { type: 'shakti', idx: s.idx };
-    g.add(sp); shaktiSprites.push(sp); pickables.push(sp);
+    g.add(sp); shaktiSprites.push(sp); pickables.push(sp); sp.add(makeBija(s.bija));
     spokes.push(new THREE.Vector3(0, 0, 0), sp.position.clone());
   }
   g.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(spokes), lineMat(F.color, 0.25)));
-  // ambient particle aura of the field
-  const aura = makePoints(500, 1.5, 0.45, 1); const pa = aura.geometry.attributes.position.array, ca = aura.geometry.attributes.aColor.array; const C = col(F.color);
-  for (let i = 0; i < 500; i++) { const r = NODE_R * (0.3 + Math.random() * 1.2), t = Math.random() * TAU; pa.set([Math.cos(t) * r, (Math.random() - .5) * 18, Math.sin(t) * r], i * 3); const k = 0.4 + Math.random() * 0.6; ca.set([C.r * k, C.g * k, C.b * k], i * 3); }
+  // ambient particle aura of the field — each field has its own particle signature (shape, density, motion)
+  const SG = FIELD_SIG[F.key]; const aura = makePoints(SG.n, SG.size, SG.op, SG.tw); aura.material.uniforms.uShape.value = SG.shape;
+  const pa = aura.geometry.attributes.position.array, ca = aura.geometry.attributes.aColor.array, sa = aura.geometry.attributes.aSize.array; const C = col(F.color);
+  const ab = new Float32Array(SG.n * 4);
+  for (let i = 0; i < SG.n; i++) { let x, y, z; const r1 = Math.random(), r2 = Math.random(), r3 = Math.random();
+    if (F.key === 'earth') { const r = NODE_R * (0.25 + Math.sqrt(r1) * 1.05), t = r2 * TAU; x = Math.round(Math.cos(t) * r / 2.2) * 2.2; z = Math.round(Math.sin(t) * r / 2.2) * 2.2; y = Math.round((r3 - 0.5) * 6 / 2.2) * 2.2; } // dense crystalline lattice
+    else if (F.key === 'ether') { const r = NODE_R * (0.4 + r1 * 1.4), t = r2 * TAU; x = Math.cos(t) * r; z = Math.sin(t) * r; y = (r3 - 0.5) * 34; }
+    else if (F.key === 'light') { const th = r2 * TAU, ph = Math.acos(2 * r3 - 1), r = NODE_R * (0.5 + r1 * 0.9); x = Math.sin(ph) * Math.cos(th) * r; y = Math.cos(ph) * r * 0.6; z = Math.sin(ph) * Math.sin(th) * r; }
+    else { const r = NODE_R * (0.3 + r1 * 1.2), t = r2 * TAU; x = Math.cos(t) * r; z = Math.sin(t) * r; y = (r3 - 0.5) * 18; }
+    ab.set([x, y, z, Math.random()], i * 4); pa.set([x, y, z], i * 3); const k = SG.k0 + Math.random() * (1 - SG.k0); ca.set([C.r * k, C.g * k, C.b * k], i * 3); sa[i] = 0.6 + Math.random() * 0.8; }
+  aura.userData = { base: ab, key: F.key, col: C };
   g.add(aura);
-  fieldObjs.push({ g, F, core, lab, fade: 1, aura });
+  // mind: synaptic links between neighbouring sparks
+  let links = null; if (F.key === 'mind') { const pairs = []; for (let i = 0; i < SG.n && pairs.length < 140; i++) for (let j = i + 1; j < SG.n; j++) { const dx = ab[i * 4] - ab[j * 4], dy = ab[i * 4 + 1] - ab[j * 4 + 1], dz = ab[i * 4 + 2] - ab[j * 4 + 2]; if (dx * dx + dy * dy + dz * dz < 36) { pairs.push(i, j); break; } }
+    const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pairs.length * 3), 3)); lg.setAttribute('color', new THREE.BufferAttribute(new Float32Array(pairs.length * 3), 3));
+    const lm = new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.8, depthWrite: false, blending: THREE.AdditiveBlending }); lm.userData.base = 0.8; links = new THREE.LineSegments(lg, lm); links.userData.pairs = pairs; links.frustumCulled = false; g.add(links); }
+  fieldObjs.push({ g, F, core, lab, fade: 1, aura, links });
 });
 // non-hierarchical orbit loop: earth → water → fire → desire → ether → mind → air → light → earth
 const loopN = 2400; const loop = makePoints(loopN, 2.6, 0.9, 0.4); scene.add(loop);
@@ -465,11 +572,11 @@ const starNodes = D.NAKSHATRAS.map((nm, k) => {
 
 // ------------------------------------------------------------------ emanation cascade streams
 const CAS_N = 2600; const cascade = makePoints(CAS_N, 1.8, 0, 0); scene.add(cascade);
-const dakiniSprite = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, depthWrite: false, opacity: 0 })); dakiniSprite.scale.setScalar(16); scene.add(dakiniSprite);
+const dakiniSprite = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, depthWrite: false, opacity: 0 })); dakiniSprite.scale.setScalar(16); scene.add(dakiniSprite); let dakiniBija = null;
 let dakiniLabel = null; let cascadeT0 = -1; let cascadeIdx = null;
 
 // ------------------------------------------------------------------ manifestation particles
-const MAN_N = 3200; const manifest = makePoints(MAN_N, 0.5, 1, 0); scene.add(manifest);
+let manGain = 1; const MAN_N = 6400; const manifest = makePoints(MAN_N, 0.4, 1, 0); scene.add(manifest); // more, smaller, crisper points (sizes are in device pixels, so DPR-aware)
 manifest.renderOrder = 31; manifest.material.depthTest = false;
 function bubbleTex() { const c = document.createElement('canvas'); c.width = c.height = 256; const x = c.getContext('2d');
   const g = x.createRadialGradient(128, 128, 0, 128, 128, 128); g.addColorStop(0, 'rgba(2,3,10,1)'); g.addColorStop(0.76, 'rgba(3,4,14,1)'); g.addColorStop(0.86, 'rgba(3,4,14,0.75)'); g.addColorStop(1, 'rgba(3,4,14,0)');
@@ -608,7 +715,7 @@ function selectShakti(i) {
 function playThread(fi) { startChain(threadChain(fi), 'thread', fi, null); }
 function startCascade(i) {
   cascadeIdx = i; cascadeT0 = clock.elapsedTime; const s = D.SHAKTIS[i], fam = D.FAMILIES[s.fam];
-  dakiniSprite.material.map = bijaTex(s.bija, fam.color); dakiniSprite.material.needsUpdate = true;
+  dakiniSprite.material.map = bijaTex(s.bija, fam.color); dakiniSprite.material.needsUpdate = true; if (dakiniBija) dakiniSprite.remove(dakiniBija); dakiniBija = makeBija(s.bija); dakiniSprite.add(dakiniBija);
   if (dakiniLabel) scene.remove(dakiniLabel); dakiniLabel = makeLabel('डाकिनी', s.dakini, fam.color, 7); scene.add(dakiniLabel);
 }
 // ---- chain playback controls (click-triggered only)
@@ -729,7 +836,8 @@ canvas.addEventListener('pointermove', (ev) => {
 canvas.addEventListener('pointerleave', () => { state.hoveredShakti = null; tip.style.display = 'none'; });
 canvas.addEventListener('pointerdown', (ev) => { down = [ev.clientX, ev.clientY]; });
 canvas.addEventListener('pointerup', (ev) => {
-  if (!down || Math.hypot(ev.clientX - down[0], ev.clientY - down[1]) > 5) return; const o = pick(ev); if (!o) return; const u = o.userData;
+  if (!down || Math.hypot(ev.clientX - down[0], ev.clientY - down[1]) > 5) return; const o = pick(ev); if (!o) return; activate(o); });
+function activate(o) { const u = o.userData;
   if (state.mode === 'human') { if (u.type === 'h_wheel') showHumanInfo('wheels', `<div class="muted">${u.name}</div>`); else if (u.type) showHumanInfo(u.type.slice(2)); return; }
   if (u.type === 'shakti') selectShakti(u.idx);
   else if (u.type === 'field') selectField(state.field === u.fi ? null : u.fi);
@@ -744,7 +852,7 @@ canvas.addEventListener('pointerup', (ev) => {
   else if (u.type === 'disk') { const Dk = D.DISKS.find((x) => x.key === u.key); showMisc(`<h2 style="color:${Dk.color}">${Dk.name} <span style="font-family:${DEVA}">${Dk.skt}</span></h2>${ex(DISK_EXPLAIN[Dk.key], 'Explain ▸', true)}`); }
   else if (u.type === 'deities') showMisc(`<h2>Kālacakra & Viśvamātā</h2>${ex(EXPLAIN.deities, 'Explain ▸', true)}${ex(EXPLAIN.blissShaktis)}`);
   else if (u.type === 'bindu') showMisc(`<h2>The bindu</h2>${ex(EXPLAIN.bindu, 'Explain ▸', true)}`);
-});
+}
 addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); composer.setSize(innerWidth, innerHeight); updatePix(); });
 
 // ------------------------------------------------------------------ animation
@@ -758,15 +866,17 @@ function absorbedFieldFade(fi) { const st = state.stage; if (st === 0 || st === 
 function bez(a, b, lift, u, out) { const m = tmp3.copy(a).add(b).multiplyScalar(0.5); m.y += lift; const iu = 1 - u;
   out.set(iu * iu * a.x + 2 * iu * u * m.x + u * u * b.x, iu * iu * a.y + 2 * iu * u * m.y + u * u * b.y, iu * iu * a.z + 2 * iu * u * m.z + u * u * b.z); return out; }
 
+// ?fixedstep: deterministic 30 fps virtual clock (used only for screenshot capture in slow software-GL browsers)
+const FIXED_STEP = new URLSearchParams(location.search).has('fixedstep'); let vClock = 0;
 function animate() {
   requestAnimationFrame(animate);
-  const dt = Math.min(clock.getDelta(), 0.1), t = clock.elapsedTime, k = lerpK(dt), st = state.stage;
+  let dt = Math.min(clock.getDelta(), 0.1), t = clock.elapsedTime; if (FIXED_STEP) { dt = 1 / 30; vClock += dt; t = vClock; clock.elapsedTime = t; } const k = lerpK(dt), st = state.stage;
   for (const m of allPointMats) m.uniforms.uTime.value = t;
   if (fly) { const u = Math.min(1, (t - fly.s) / 1.6), e = u * u * (3 - 2 * u); camera.position.lerpVectors(fly.p0, fly.p1, e); controls.target.lerpVectors(fly.t0, fly.t1, e); if (u >= 1) fly = null; }
   controls.update();
   state.phowaPalace = st === 8 ? Math.min(1, (t - stageT0) / PHOWA_DUR) : 0;
   state.phowaHuman = state.tummoStep === PHOWA_STEP ? Math.min(1, (t - human.stepT0) / PHOWA_DUR) : 0;
-  if (state.mode === 'human') { human.update(t, dt); bloom.strength = 0.75; bloom.radius = 0.5; labels.forEach((l) => { if (!state.labels) l.visible = false; }); composer.render(); return; }
+  if (state.mode === 'human') { human.update(t, dt); bloom.strength = 0.75; bloom.radius = 0.5; composer.render(); updateLabels(human.scene); return; }
   // phowa progress: only after the phowa button was clicked (stage 8), eased over PHOWA_DUR seconds
   const phT = st === 8 ? Math.min(1, (t - stageT0) / PHOWA_DUR) : 0, phE = phT * phT * (3 - 2 * phT); state.phowa = phT;
 
@@ -848,7 +958,6 @@ function animate() {
   famNodes.forEach((n, i) => setFade(n.g, (1 - darkness * 0.7) * (1 - phE * 0.8) * (cascadeIdx !== null && D.SHAKTIS[cascadeIdx].fam === i ? 1 : 0.7)));
   planetNodes.forEach((n) => { setFade(n.g, (1 - darkness * 0.7) * (1 - phE * 0.8)); n.s.scale.setScalar(20); });
   starNodes.forEach((s, i) => { s.material.opacity = 0.8 * (1 - darkness * 0.6) * (0.7 + 0.3 * Math.sin(t * 1.7 + i)); s.scale.setScalar(12); s.userData.lab.visible = false; });
-  labels.forEach((l) => { if (!state.labels) l.visible = false; });
 
   // --- emanation cascade
   if (cascadeIdx !== null) { const s = D.SHAKTIS[cascadeIdx]; const e = t - cascadeT0;
@@ -856,7 +965,7 @@ function animate() {
     const p1 = new THREE.Vector3().lerpVectors(p0, p2, 0.42); p1.y += 55 * Math.max(state.morph, 0.2);
     const p3 = planetNodes[s.planet].g.getWorldPosition(new THREE.Vector3()); const p4 = starNodes[s.star].getWorldPosition(new THREE.Vector3());
     const pts = [p0, p1, p2, p3, p4]; const cols = [col(GOLD), col(D.FAMILIES[s.fam].color), col(D.FAMILIES[s.fam].color), col(D.PLANETS[s.planet].color), col('#cfe0ff')];
-    dakiniSprite.position.copy(p1); dakiniSprite.material.opacity = Math.min(1, Math.max(0, (e - 0.6) * 2)); dakiniSprite.scale.setScalar(16 * (1 + 0.08 * Math.sin(t * 4)));
+    dakiniSprite.position.copy(p1); dakiniSprite.material.opacity = Math.min(1, Math.max(0, (e - 0.6) * 2)); if (dakiniBija) dakiniBija.material.opacity = dakiniSprite.material.opacity; dakiniSprite.scale.setScalar(16 * (1 + 0.08 * Math.sin(t * 4)));
     if (dakiniLabel) { dakiniLabel.position.copy(p1).add(new THREE.Vector3(0, 13, 0)); dakiniLabel.material.opacity = dakiniSprite.material.opacity; dakiniLabel.visible = state.labels; }
     famNodes[s.fam].s.scale.setScalar(22 * (1 + 0.5 * Math.min(1, Math.max(0, e - 1.5)))); planetNodes[s.planet].s.scale.setScalar(20 * (1 + 0.6 * Math.min(1, Math.max(0, e - 2.4))));
     starNodes[s.star].scale.setScalar(12 * (1 + 1.5 * Math.min(1, Math.max(0, e - 3.3)))); starNodes[s.star].userData.lab.visible = state.labels && e > 3.3;
@@ -867,7 +976,7 @@ function animate() {
       P[i * 3] = tmp.x + Math.sin(i * 12.9 + t * 3) * jit; P[i * 3 + 1] = tmp.y + Math.cos(i * 7.1 + t * 2.5) * jit; P[i * 3 + 2] = tmp.z + Math.sin(i * 3.3 + t * 2) * jit;
       fc.copy(cols[sg]).lerp(cols[sg + 1], u); const on = reveal > 0 ? 1 : 0; C[i * 3] = fc.r * on; C[i * 3 + 1] = fc.g * on; C[i * 3 + 2] = fc.b * on; S[i] = (0.6 + 1.2 * Math.sin(u * Math.PI)) * on; }
     a.position.needsUpdate = a.aColor.needsUpdate = a.aSize.needsUpdate = true;
-  } else { cascade.visible = false; dakiniSprite.material.opacity = 0; if (dakiniLabel) dakiniLabel.visible = false; }
+  } else { cascade.visible = false; dakiniSprite.material.opacity = 0; if (dakiniBija) dakiniBija.material.opacity = 0; if (dakiniLabel) dakiniLabel.visible = false; }
 
   // --- chain auto-progress: only while a click-started chain is playing
   if (chain && chain.playing && t - chain.t0 > PH_DUR) { if (chain.i < chain.phases.length - 1) goPhase(chain.i + 1); else { chain.playing = false; renderChainBar(); } }
@@ -883,7 +992,7 @@ function animate() {
   const m = Math.min(1, (t - manT0) / MORPH_DUR), em = m * m * (3 - 2 * m);
   manAlpha += ((manActive !== null ? 1 : 0) - manAlpha) * lerpK(dt, 3); manifest.visible = manAlpha > 0.01; manifest.material.uniforms.uOpacity.value = manAlpha;
   if (manifest.visible && manActive !== null) {
-    const ph = manActive.ph, form = manActive.form; const f = FORMS[form]; let ctx = manCtx.get(form); if (ctx === undefined && INIT[form]) { ctx = INIT[form](MAN_N); manCtx.set(form, ctx); }
+    const ph = manActive.ph, form = manActive.form; const f = FORMS[form]; { const sg = FIELD_SIG[D.FIELDS[manActive.field].key]; manifest.material.uniforms.uShape.value = sg.mShape; manifest.material.uniforms.uSize.value = sg.mSize; manGain = sg.mGain || 1; } let ctx = manCtx.get(form); if (ctx === undefined && INIT[form]) { ctx = INIT[form](MAN_N); manCtx.set(form, ctx); }
     const tgt = phaseCenter(ph, tmp2); cenCur.lerpVectors(cenFrom, tgt, em);
     const node = phaseNode(ph, new THREE.Vector3()); const base = col(D.FIELDS[manActive.field].color); const gold = col(GOLD);
     const fade = Math.max(fieldObjs[manActive.field].fade, chain ? 0.8 : 0); const sc = FORM_SIZE; const tl = TILT[form] || 0, ct = Math.cos(tl), stt = Math.sin(tl); const fa = manActive.field / 8 * TAU, ca = Math.cos(fa), sa = Math.sin(fa);
@@ -897,7 +1006,7 @@ function animate() {
         const arc = Math.sin(em * Math.PI); x = fx + (tx - fx) * em + (MR.d[i] - .5) * 26 * arc; y = fy + (ty - fy) * em + (MR.a[i] - .3) * 18 * arc; z = fz + (tz - fz) * em + (MR.c[i] - .5) * 26 * arc; u2 = 1; }
       P[i * 3] = x; P[i * 3 + 1] = y; P[i * 3 + 2] = z;
       if (O.hue >= 0) hc.setHSL(O.hue % 1, 0.9, 0.55); else hc.copy(base); hc.lerp(wc, Math.min(1, Math.max(0, O.w)) * 0.7); hc.lerp(gold, 1 - u2);
-      const br = 0.95 * Math.max(0.25, fade); let r0 = hc.r * br, g0 = hc.g * br, b0 = hc.b * br;
+      const br = 0.95 * Math.max(0.25, fade) * manGain; let r0 = hc.r * br, g0 = hc.g * br, b0 = hc.b * br;
       if (!manFirst) { r0 = manFromC[i * 3] + (r0 - manFromC[i * 3]) * em; g0 = manFromC[i * 3 + 1] + (g0 - manFromC[i * 3 + 1]) * em; b0 = manFromC[i * 3 + 2] + (b0 - manFromC[i * 3 + 2]) * em; }
       C[i * 3] = r0; C[i * 3 + 1] = g0; C[i * 3 + 2] = b0; S[i] = Math.max(0, O.s) * (1.0 + 1.2 * (1 - u2)); }
     a.position.needsUpdate = a.aColor.needsUpdate = a.aSize.needsUpdate = true;
@@ -907,9 +1016,8 @@ function animate() {
       bubble.material.opacity = manAlpha; bubbleRim.material.color.set(D.FIELDS[manActive.field].color); bubbleRim.material.opacity = manAlpha * 0.55;
       if (bubbleLabelFor !== manKey) { if (bubbleLabel) scene.remove(bubbleLabel); const ph = manActive.ph; const sk = ph.kind === 'climax' ? null : D.SHAKTIS[ph.idx];
         const top = chain ? (sk && ph.kind !== 'intent' ? sk.bija + '  ' : '') + ph.name : sk.bija + '  ' + sk.name; const bottom = chain ? `${D.FIELDS[ph.field].name} · phase ${chain.i + 1}/${chain.phases.length}` : sk.formName;
-        bubbleLabel = makeLabel('', top, GOLD, 5.2); const lb2 = makeLabel('', bottom, D.FIELDS[ph.field].color, 4); bubbleLabel.add(lb2); lb2.scale.set(lb2.scale.x / bubbleLabel.scale.x, lb2.scale.y / bubbleLabel.scale.y, 1); lb2.position.y = -1.0; lb2.material.depthTest = false; lb2.renderOrder = 32;
-        bubbleLabel.material.depthTest = false; bubbleLabel.renderOrder = 32; scene.add(bubbleLabel); bubbleLabelFor = manKey; }
-      bubbleLabel.position.copy(c); bubbleLabel.position.y -= FORM_SIZE * 1.12; bubbleLabel.material.opacity = manAlpha; bubbleLabel.children[0].material.opacity = manAlpha; bubbleLabel.visible = state.labels; }
+        bubbleLabel = makeLabel(top, bottom, D.FIELDS[ph.field].color, 12, { prio: 10, maxDist: 2000, px: 14 }); scene.add(bubbleLabel); bubbleLabelFor = manKey; }
+      bubbleLabel.position.copy(c); bubbleLabel.position.y -= FORM_SIZE * 1.12; bubbleLabel.material.opacity = manAlpha * 0.95; bubbleLabel.visible = true; }
     else if (bubbleLabel) bubbleLabel.visible = false; }
   // --- chain stream: particles physically travel from the previous node into this phase (and into the next field on hand-off)
   chainStream.visible = !!(chain && chain.i > 0);
@@ -924,16 +1032,16 @@ function animate() {
   // node pulse + highlight
   shaktiSprites.forEach((sp, i) => { const hl = i === want ? 1.45 : 1; sp.scale.setScalar(15 * hl * (1 + 0.05 * Math.sin(t * 2 + i))); });
 
-  composer.render();
+  updateAuras(t); composer.render(); updateLabels(scene);
 }
 
 // ------------------------------------------------------------------ boot
 async function boot() {
   try { await Promise.race([Promise.all([document.fonts.load(`64px 'Tiro Devanagari Sanskrit'`, 'लं'), document.fonts.load(`600 20px 'Cormorant Garamond'`)]), new Promise((r) => setTimeout(r, 3500))]); } catch (e) {}
   // regenerate canvas-text textures after fonts are available
-  for (const sp of shaktiSprites) { const s = D.SHAKTIS[sp.userData.idx]; sp.material.map = bijaTex(s.bija, D.FIELDS[s.field].color); sp.material.needsUpdate = true; }
+  for (const sp of shaktiSprites) { const s = D.SHAKTIS[sp.userData.idx]; sp.material.map = bijaTex(s.bija, D.FIELDS[s.field].color, D.FIELDS[s.field].key); sp.material.needsUpdate = true; }
   stageText(); showOverview(); setMorph(1); animate();
-  window.__app = { setThogal, setStage, selectShakti, selectField, setMorph, focusShakti, focusCurrent, flyTo, setMode, setTummo, playThread, goPhase, stopChain, openOverlay, projectShakti: (i) => { const v = shaktiWorld(i, new THREE.Vector3()).project(camera); return [(v.x + 1) / 2 * innerWidth, (1 - v.y) / 2 * innerHeight]; }, getChain: () => chain && { i: chain.i, n: chain.phases.length, playing: chain.playing, form: chain.phases[chain.i].form }, topView: () => $('#topView').click(), resetView: () => $('#resetView').click(), camera, controls, state };
+  window.__app = { now: () => clock.elapsedTime, setThogal, setStage, selectShakti, selectField, setMorph, focusShakti, focusCurrent, flyTo, setMode, setTummo, playThread, goPhase, stopChain, openOverlay, projectShakti: (i) => { const v = shaktiWorld(i, new THREE.Vector3()).project(camera); return [(v.x + 1) / 2 * innerWidth, (1 - v.y) / 2 * innerHeight]; }, getChain: () => chain && { i: chain.i, n: chain.phases.length, playing: chain.playing, form: chain.phases[chain.i].form }, topView: () => $('#topView').click(), resetView: () => $('#resetView').click(), camera, controls, state };
   setTimeout(() => { $('#loading').style.opacity = 0; setTimeout(() => $('#loading').remove(), 1000); }, 300);
   window.__ready = true;
 }
