@@ -180,6 +180,6 @@ async def main():
         s = await S(); check('stage still 0 at end (nothing auto-advanced)', s['stage']==0, s['stage'])
         check('no console errors', len(logs)==0, logs[:5])
         print('LOGS', logs)
-        json.dump([{'name':n,'pass':c,'detail':str(d)} for n,c,d in results], open('shots/live-v5/live-v5/v5-assertions.json','w'), indent=1)
+        json.dump([{'name':n,'pass':c,'detail':str(d)} for n,c,d in results], open('shots/live-v5/v5-assertions.json','w'), indent=1)
         await b.close()
 asyncio.run(main())
