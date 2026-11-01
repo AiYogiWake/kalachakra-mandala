@@ -9,6 +9,7 @@ import { FORMS, INIT, TILT, rng } from './forms.js';
 import { EXPLAIN, STAGE_EXPLAIN, LEVEL_EXPLAIN, DISK_EXPLAIN, FIELD_EXPLAIN, HUMAN_INFO, TUMMO_STEPS, DIALOGUE, REFS, VOICE_NOTE, DIALOGUE_NOTE, PRACTICE_NOTE, shaktiNote, THOGAL_STEPS, THOGAL_INTRO } from './teachings.js';
 import { shaktiChain, threadChain } from './chains.js';
 import { createHuman } from './human.js';
+import { createAscension, ASC_STEPS, ASC_INTRO, ASC_REFS } from './ascension.js';
 
 const TAU = Math.PI * 2;
 const DEVA = "'Tiro Devanagari Sanskrit','Noto Sans Devanagari','Noto Serif Devanagari',serif";
@@ -779,6 +780,22 @@ function setTummo(i) { const t0 = clock.elapsedTime; applyTummo(i, t0);
   if (i === PHOWA_STEP) { state.phowaT0 = t0; applyStage(8, t0); }
   else if (i === -1) { state.phowaT0 = null; applyStage(0, t0); }
   else if (state.stage !== 8) state.phowaT0 = null; }
+
+// ---- Ascension (click-only) ----
+const asc = createAscension({ scene, makePoints, glowSprite, lineMat, makeLabel, figurePoints, BINDU_Y: D.BINDU_Y, rng });
+state.ascStep = -1;
+const ascBox = $('#ascButtons');
+ASC_STEPS.forEach((s, i) => { const b = document.createElement('button'); b.className = 'stage ascstep'; b.dataset.asc = i; b.style.setProperty('--c', s.c);
+  b.innerHTML = `<span class="dot">${i + 1}</span><span class="t">${s.t}</span>`; b.onclick = () => setAscension(i); ascBox.appendChild(b); });
+function ascText() { const i = state.ascStep; document.querySelectorAll('.ascstep').forEach((b) => b.classList.toggle('active', +b.dataset.asc === i));
+  const s = ASC_STEPS[i]; $('#ascText').innerHTML = (s ? `<p><b style="color:${s.c}">${i + 1} · ${s.t}</b></p><p>${s.plain}</p><p><i>“${s.voice}”</i> <span class="note small">imagined voice, not a quotation</span></p>` : '') + ASC_INTRO + '<p>' + ASC_REFS.map(([t, u]) => `<a href="${u}" target="_blank" rel="noopener">${t}</a>`).join(' · ') + '</p>'; }
+function setAscension(i) { if (state.mode === 'human') setMode('palace'); i = Math.max(-1, Math.min(ASC_STEPS.length - 1, i)); state.ascStep = i; asc.setStep(i, clock.elapsedTime); ascText(); if (i >= 0) $('#ascMore').open = true; }
+$('#ascBack').onclick = () => setAscension(state.ascStep - 1);
+$('#ascReplay').onclick = () => { if (state.ascStep >= 0) setAscension(state.ascStep); };
+$('#ascReset').onclick = () => setAscension(-1);
+$('#ascFocus').onclick = () => { const [p, t] = asc.focus(); flyTo(p, t); };
+$('#hAsc').onclick = () => { setMode('palace'); $('#ascMore').open = true; $('#ascButtons').scrollIntoView({ block: 'nearest' }); };
+ascText();
 const thogBox = $('#thogalButtons');
 THOGAL_STEPS.forEach((s, i) => { const b = document.createElement('button'); b.className = 'stage thstep'; b.dataset.thstep = i; b.style.setProperty('--c', ['#b9d0ff', '#9fc0ff', '#d6c8ff', '#ffffff', '#ff9ad5'][i]);
   b.innerHTML = `<span class="dot">${['I', 'II', 'III', 'IV', '◌'][i]}</span><span class="t">${s.t.replace(/^[IV]+ · /, '')}<small>${s.tib}</small></span>`; b.onclick = () => setThogal(i); thogBox.appendChild(b); });
@@ -1032,7 +1049,7 @@ function animate() {
   // node pulse + highlight
   shaktiSprites.forEach((sp, i) => { const hl = i === want ? 1.45 : 1; sp.scale.setScalar(15 * hl * (1 + 0.05 * Math.sin(t * 2 + i))); });
 
-  updateAuras(t); composer.render(); updateLabels(scene);
+  updateAuras(t); asc.update(t); state.asc = { step: asc.S.step, prog: asc.S.prog, lifted: asc.S.lifted, landed: asc.S.landed }; composer.render(); updateLabels(scene);
 }
 
 // ------------------------------------------------------------------ boot
@@ -1041,7 +1058,7 @@ async function boot() {
   // regenerate canvas-text textures after fonts are available
   for (const sp of shaktiSprites) { const s = D.SHAKTIS[sp.userData.idx]; sp.material.map = bijaTex(s.bija, D.FIELDS[s.field].color, D.FIELDS[s.field].key); sp.material.needsUpdate = true; }
   stageText(); showOverview(); setMorph(1); animate();
-  window.__app = { now: () => clock.elapsedTime, setThogal, setStage, selectShakti, selectField, setMorph, focusShakti, focusCurrent, flyTo, setMode, setTummo, playThread, goPhase, stopChain, openOverlay, projectShakti: (i) => { const v = shaktiWorld(i, new THREE.Vector3()).project(camera); return [(v.x + 1) / 2 * innerWidth, (1 - v.y) / 2 * innerHeight]; }, getChain: () => chain && { i: chain.i, n: chain.phases.length, playing: chain.playing, form: chain.phases[chain.i].form }, topView: () => $('#topView').click(), resetView: () => $('#resetView').click(), camera, controls, state };
+  window.__app = { setAscension, asc, now: () => clock.elapsedTime, setThogal, setStage, selectShakti, selectField, setMorph, focusShakti, focusCurrent, flyTo, setMode, setTummo, playThread, goPhase, stopChain, openOverlay, projectShakti: (i) => { const v = shaktiWorld(i, new THREE.Vector3()).project(camera); return [(v.x + 1) / 2 * innerWidth, (1 - v.y) / 2 * innerHeight]; }, getChain: () => chain && { i: chain.i, n: chain.phases.length, playing: chain.playing, form: chain.phases[chain.i].form }, topView: () => $('#topView').click(), resetView: () => $('#resetView').click(), camera, controls, state };
   setTimeout(() => { $('#loading').style.opacity = 0; setTimeout(() => $('#loading').remove(), 1000); }, 300);
   window.__ready = true;
 }

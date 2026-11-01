@@ -117,6 +117,10 @@
   .l3.click .box { pointer-events:auto; cursor:pointer; }
   .l3.click .box:hover { border-color:var(--c); background:rgba(20,24,60,.85); }
   @media (max-width: 900px) { #info { width:240px; font-size:11px; } #fieldbar { max-width:calc(100% - 28px); bottom:150px; min-width:0; } }
+  #yogas h1.asc { margin-top:12px; font-size:17px; color:#ffc8ec; border-top:1px solid var(--line); padding-top:10px; }
+  .ascrow { display:flex; gap:4px; flex-wrap:wrap; margin-top:6px; } .ascrow .btn { font-size:11px; padding:3px 7px; }
+  #ascMore summary { cursor:pointer; font-size:11.5px; color:#cfd6ff; margin-top:6px; }
+  #ascText { font-size:11.5px; line-height:1.45; color:#b9c2f0; } #ascText i { color:#ffd9ef; } #ascText a { color:#9fc0ff; }
 </style>
 </head>
 <body>
@@ -129,10 +133,15 @@
   <div class="sub">Completion stage — click a stage; nothing advances by itself.</div>
   <div id="stageButtons"></div>
   <div id="stageText"></div>
+  <h1 class="asc">Ascension</h1>
+  <div class="sub">Interpretive · click a step; nothing advances by itself.</div>
+  <div id="ascButtons"></div>
+  <div class="ascrow"><button class="btn" id="ascBack">◀ Back</button><button class="btn" id="ascReplay">↺ Replay</button><button class="btn" id="ascReset">✕ Reset</button><button class="btn" id="ascFocus">⌖ Focus</button></div>
+  <details id="ascMore"><summary>Explanation</summary><div id="ascText"></div></details>
 </div>
 
 <div id="tabs" class="panel"><button class="tab active" data-mode="palace">Palace of Time</button><button class="tab" data-mode="human">The Human Maṇḍala — Three Kāyas</button><button class="tab" data-ov="purpose">Purpose of Kālacakra</button><button class="tab" data-ov="refs">References</button></div>
-<div id="humanPanel" class="panel"><h1>Inner fire · Tummo</h1><div class="sub">Holographic body · click a step; nothing advances by itself.</div><div id="tummoButtons"></div><h1 class="th">Thögal · the four visions</h1><div class="sub">Picks up from the kati channel. One click per vision.</div><div id="thogalButtons"></div><button class="btn" id="hFocus">⌖ Focus</button><div id="tummoText"></div></div>
+<div id="humanPanel" class="panel"><h1>Inner fire · Tummo</h1><div class="sub">Holographic body · click a step; nothing advances by itself.</div><div id="tummoButtons"></div><h1 class="th">Thögal · the four visions</h1><div class="sub">Picks up from the kati channel. One click per vision.</div><div id="thogalButtons"></div><button class="btn" id="hFocus">⌖ Focus</button><button class="btn" id="hAsc" title="Open the Ascension sequence in the Palace tab">⇡ Ascension</button><div id="tummoText"></div></div>
 <div id="info" class="panel"></div>
 <div id="chainBar" class="panel" style="display:none"><div><span id="chPhase"></span><span id="chName"></span></div><div id="chVoice"></div><div id="chDots"></div><div class="ctl"><button id="chPrev">◀ Step back</button><button id="chPlay">⏸ Pause</button><button id="chNext">Step ▶</button><button id="chFocus">⌖ Focus</button><button id="chClose">✕ Close</button></div></div>
 <div id="overlay"><div class="ovbox panel"><button id="ovClose">✕ Close</button><div id="ovBody"></div></div></div>
