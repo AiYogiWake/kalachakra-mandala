@@ -28,3 +28,9 @@ Static files only: `index.html`, `main.js`, `data.js`, `forms.js`, `chains.js`, 
 - **Fields** each have a particle signature (interpretive): earth crystalline grains, water droplets with refraction rim, fire rising teardrop embers, desire heartbeat-pulsing glow, ether sparse hollow rings, mind filament sparks with synaptic links, air streaked swirling wisps, light prismatic twinkling stars; node rings follow elemental yantra-like shapes.
 - **64 forms**: 6400 smaller, crisper, DPR-aware points in the field's own point shape; several look-alikes redrawn (wind streamlines, afterglow shells, clear-light orb, aurora rays, galaxy arms, dream ripples, tree forms always half-grown). Contact sheet: `shots/v4-forms-contact-sheet.png`.
 - `?fixedstep` URL flag: deterministic 30 fps virtual clock for screenshot capture only.
+
+## v5 — Ascension (click-only, interpretive)
+New `ascension.js`. Palace tab → **Ascension** panel (also reachable from the Human tab via ⇡ Ascension):
+1. Rising from the table · 2. Crossing Kailash — stardust · 3. Lifting the sadhus · 4. The galaxy vortex — plus Back, Replay, Reset, Focus.
+Each click plays one eased step and holds; nothing advances and the camera never moves by itself. Mount Kailash and Lake Manasarovar are **symbolic** models; the italic lines are an **imagined** voice in the spirit of Longchenpa, not quotations. The bindu and its glare are untouched.
+References: Wikipedia — Mount Kailash, Mount Meru, Lake Manasarovar.
