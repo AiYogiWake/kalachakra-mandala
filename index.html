@@ -121,9 +121,79 @@
   .ascrow { display:flex; gap:4px; flex-wrap:wrap; margin-top:6px; } .ascrow .btn { font-size:11px; padding:3px 7px; }
   #ascMore summary { cursor:pointer; font-size:11.5px; color:#cfd6ff; margin-top:6px; }
   #ascText { font-size:11.5px; line-height:1.45; color:#b9c2f0; } #ascText i { color:#ffd9ef; } #ascText a { color:#9fc0ff; }
+
+  /* ---- v6 layout: visuals dominant, text in drawers ---- */
+  #tabs { max-width: calc(100% - 28px); flex-wrap: wrap; justify-content: center; }
+  .tab { font-size: 11.5px; padding: 5px 10px; }
+  #info {
+    top: 58px; right: 14px; width: min(340px, 32vw); max-height: calc(100% - 160px);
+    transform: translateX(calc(100% + 28px)); transition: transform .28s ease;
+    z-index: 8; padding: 0; overflow: hidden; display: flex; flex-direction: column;
+  }
+  #info.open { transform: translateX(0); padding: 12px 14px; overflow: auto; }
+  #info .info-body { overflow: auto; flex: 1; }
+  #drawerBtn {
+    position: fixed; top: 58px; right: 14px; z-index: 9; padding: 6px 11px;
+    border-radius: 8px; border: 1px solid rgba(255,211,107,.5); background: rgba(6,8,22,.85);
+    color: #ffe9b0; font: 500 11.5px Inter,sans-serif; cursor: pointer;
+  }
+  #drawerBtn.on { background: rgba(255,211,107,.2); }
+  #yogas, #humanPanel, #windPanel { max-height: calc(100% - 175px); overflow: auto; }
+  #yogas details.ex, #humanPanel details.ex, #windPanel details.ex, #info details.ex { /* collapsed by default already */ }
+  #windPanel { top: 58px; left: 14px; width: 300px; padding: 12px; z-index: 5; display: none; }
+  #windPanel h1 { font-size: 18px; }
+  #windPanel .sub { font-size: 11px; color: var(--dim); margin: 2px 0 8px; }
+  #windPanel .badge { display: inline-block; margin: 4px 0 8px; padding: 3px 8px; border-radius: 6px; background: rgba(90,160,255,.15); border: 1px solid rgba(120,180,255,.35); color: #9fd0ff; font-size: 10.5px; }
+  #windPanel .warn { margin: 6px 0; padding: 6px 8px; border-left: 2px solid #ffb84a; background: rgba(255,180,60,.08); color: #e8d4a8; font-size: 10.5px; line-height: 1.4; }
+  #windScrub { width: 100%; accent-color: #ffd36b; margin: 4px 0; }
+  #windHourLbl { font-family: 'Cormorant Garamond', serif; font-size: 22px; color: var(--gold); }
+  #windMeta { font-size: 11.5px; line-height: 1.45; color: #b9c2f0; margin-top: 6px; }
+  #windMeta b { color: var(--gold); }
+  .wshift { display: flex; align-items: center; gap: 7px; width: 100%; margin: 2px 0; padding: 4px 7px; border-radius: 7px; border: 1px solid rgba(120,140,255,.18); background: rgba(20,24,60,.35); color: var(--ink); font: 500 11.5px Inter,sans-serif; cursor: pointer; text-align: left; }
+  .wshift:hover { border-color: rgba(255,211,107,.55); }
+  .wshift.active { border-color: var(--gold); background: linear-gradient(90deg, rgba(255,211,107,.2), rgba(255,211,107,.04)); }
+  .wshift .dot { flex: 0 0 18px; height: 18px; border-radius: 50%; background: var(--c); box-shadow: 0 0 8px var(--c); }
+  .wdawn { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 4px; }
+  .wdawn .btn.active { background: rgba(255,211,107,.28); }
+  #windRing { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 6; padding: 8px 12px; display: none; align-items: center; gap: 8px; max-width: min(720px, calc(100% - 40px)); }
+  body.wind #yogas, body.wind #fieldbar, body.wind #controls .rowmorph, body.wind #chainBar, body.wind #humanPanel { display: none !important; }
+  body.wind #windPanel, body.wind #windRing { display: flex; }
+  body.wind #windPanel { display: block; }
+  body.human #windPanel, body.palace #windPanel, body.human #windRing, body.palace #windRing { display: none !important; }
+  body.palace #yogas { display: block; }
+  /* Mobile / phone width: bottom sheet */
+  #windPanel .sheet-handle { display: none; }
+  @media (min-width: 701px) { #windPanel.collapsed .wind-advanced { display: block !important; } #windPanel.collapsed { max-height: calc(100% - 175px); overflow: auto; } }
+  @media (max-width: 700px) {
+    #tabs { top: 6px; left: 6px; right: 6px; transform: none; width: auto; max-height: 72px; overflow: auto; }
+    #drawerBtn { top: auto; bottom: 118px; right: 10px; }
+    #info {
+      top: auto; bottom: 0; left: 0; right: 0; width: 100%; max-height: 55vh;
+      transform: translateY(100%); border-radius: 14px 14px 0 0; max-width: none;
+    }
+    #info.open { transform: translateY(0); padding: 12px 14px; overflow: auto; }
+    #yogas, #humanPanel {
+      top: auto; left: 0; right: 0; bottom: 0; width: 100%; max-height: 38vh;
+      border-radius: 14px 14px 0 0; padding-bottom: 18px;
+    }
+    #windPanel {
+      top: auto; left: 0; right: 0; bottom: 0; width: 100%; max-height: 32vh;
+      border-radius: 14px 14px 0 0; padding: 8px 12px 14px; overflow: auto;
+    }
+    #windPanel.collapsed { max-height: 112px; overflow: hidden; }
+    #windPanel.collapsed .wind-advanced { display: none; }
+    #windPanel:not(.collapsed) { max-height: 48vh; }
+    #windPanel .sheet-handle { display: block; text-align: center; cursor: pointer; color: var(--gold); font-size: 11px; padding: 2px 0 6px; }
+    #fieldbar { bottom: 34vh; max-width: calc(100% - 16px); min-width: 0; left: 8px; transform: none; }
+    #controls { left: 8px; bottom: auto; top: 78px; width: auto; max-width: 56vw; padding: 6px 8px; font-size: 10px; }
+    #windRing { left: 8px; right: auto; bottom: auto; top: 78px; transform: none; max-width: 55vw; padding: 5px 8px; }
+    #chainBar { bottom: 40vh; width: calc(100% - 16px); min-width: 0; left: 8px; transform: none; }
+    #windHourLbl { font-size: 18px; }
+  }
+
 </style>
 </head>
-<body>
+<body class="wind">
 <canvas id="c"></canvas>
 <div id="labels3d"></div>
 <div id="loading">Unfolding the palace of time…</div>
@@ -140,7 +210,32 @@
   <details id="ascMore"><summary>Explanation</summary><div id="ascText"></div></details>
 </div>
 
-<div id="tabs" class="panel"><button class="tab active" data-mode="palace">Palace of Time</button><button class="tab" data-mode="human">The Human Maṇḍala — Three Kāyas</button><button class="tab" data-ov="purpose">Purpose of Kālacakra</button><button class="tab" data-ov="refs">References</button></div>
+<div id="tabs" class="panel"><button class="tab active" data-mode="wind">24-Hour Pranic Wind Map</button><button class="tab" data-mode="palace">Palace of Time</button><button class="tab" data-mode="human">The Human Maṇḍala — Three Kāyas</button><button class="tab" data-ov="purpose">Purpose of Kālacakra</button><button class="tab" data-ov="refs">References</button></div>
+<button id="drawerBtn" type="button" title="Open explanations">Explain ▸</button>
+<div id="windPanel" class="panel collapsed">
+  <div class="sheet-handle" id="windSheetToggle">▴ Expand wind controls</div>
+  <h1>24-Hour Pranic Wind Map</h1>
+  <div class="sub">Click a shift or scrub the hour — nothing advances by itself.</div>
+  <div class="badge">Sourced: 1,800 breaths × 12 shifts = 21,600 / day · 12 navel zodiac channels</div>
+  <div class="warn" id="windWarn"></div>
+  <div id="windHourLbl">4:30 AM</div>
+  <input id="windScrub" type="range" min="0" max="239" step="1" value="45" />
+  <div class="sub" style="margin-top:2px">Scrub · 6-minute steps across 24 hours</div>
+  <div class="wind-advanced">
+  <div id="windShifts"></div>
+  <div class="rh">Next four hours after 4:30 AM</div>
+  <div class="wdawn" id="windDawn"></div>
+  <div id="windMeta"></div>
+  <div class="ascrow" style="margin-top:8px">
+    <button class="btn" id="wFocus">⌖ Focus</button>
+    <button class="btn" id="wReset">✕ Reset</button>
+    <button class="btn" id="wLinkYoga">→ Yoga stage</button>
+    <button class="btn" id="wLinkField">→ Field</button>
+  </div>
+  <details class="ex" id="windExplain"><summary>Sourced structure · interpretive limb clock ▸</summary><div id="windExplainBody"></div></details>
+  </div>
+</div>
+<div id="windRing" class="panel"><span class="muted" style="font-size:11px">Active shift</span><b id="windRingLbl" style="color:var(--gold);font-family:'Cormorant Garamond',serif;font-size:16px"></b></div>
 <div id="humanPanel" class="panel"><h1>Inner fire · Tummo</h1><div class="sub">Holographic body · click a step; nothing advances by itself.</div><div id="tummoButtons"></div><h1 class="th">Thögal · the four visions</h1><div class="sub">Picks up from the kati channel. One click per vision.</div><div id="thogalButtons"></div><button class="btn" id="hFocus">⌖ Focus</button><button class="btn" id="hAsc" title="Open the Ascension sequence in the Palace tab">⇡ Ascension</button><div id="tummoText"></div></div>
 <div id="info" class="panel"></div>
 <div id="chainBar" class="panel" style="display:none"><div><span id="chPhase"></span><span id="chName"></span></div><div id="chVoice"></div><div id="chDots"></div><div class="ctl"><button id="chPrev">◀ Step back</button><button id="chPlay">⏸ Pause</button><button id="chNext">Step ▶</button><button id="chFocus">⌖ Focus</button><button id="chClose">✕ Close</button></div></div>

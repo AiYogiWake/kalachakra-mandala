@@ -229,3 +229,32 @@ export const THOGAL_STEPS = [
     p: 'The rainbow body (’ja’ lus) is the fruition described for thögal: at death the physical body of an accomplished practitioner dissolves into light, sometimes leaving only hair and nails, as recorded in Nyingma and Bön accounts. Where phowa transfers consciousness out of the body, the rainbow body dissolves the body itself into its luminous nature.',
     m: 'Metaphor: phowa migrates the process to another server. The rainbow body shows the hardware was light all along: the device unrenders into the screen it ran on and lands on the same ground, by a different road.', r: ['tsigdon', 'smith17', 'rwVisions', 'rwLong'] },
 ];
+
+// ---------------------------------------------------------------- 24-Hour Pranic Wind Map
+// Sourced vs interpretive are kept separate in WIND_INTRO / WIND_INTERP_NOTE.
+REFS.berzinArm = { cite: 'Alexander Berzin, “Kalachakra Does Not Predict an Actual Armageddon,” Study Buddhism — parallels of the 1,800 breaths in each of the 12 zodiac / shift / navel-channel periods of a day.', url: 'https://studybuddhism.com/en/advanced-studies/vajrayana/kalachakra-advanced/kalachakra-does-not-predict-an-actual-armageddon', v: true };
+REFS.berzinInt = { cite: 'Alexander Berzin, “Internal Kalachakra,” Study Buddhism — 21,600 breaths per day-and-night; twelve nostril shifts; sun’s northern/southern declination paralleled by right/left breath.', url: 'https://studybuddhism.com/en/advanced-studies/vajrayana/kalachakra-advanced/internal-kalachakra', v: true };
+REFS.wallaceInner = { cite: 'Vesna A. Wallace, The Inner Kālacakratantra: A Buddhist Tantric View of the Individual. Oxford University Press, 2001 (inner cycles of breath, channels and time).', url: 'https://books.google.com/books?id=i_KOOn0BaCoC', v: true };
+
+export const WIND_INTERP_NOTE = 'INTERPRETIVE SCHEMATIC — not a textual timetable. The fixed clock-hour → limb mappings (shoulder, elbow, wrist, hip, chest, etc.), the claim that the left channel dominates specifically at 4:30 AM, the dawn “earth dissolves into water” timing tied to a wall-clock, and “breath drawn from the ground / secret place” as a clocked entry are practice-orientation images composed for this map. They are NOT cited as root-tantra, Vimalaprabhā, or later-manual discrepancies. Where sources were not checked side-by-side for a difference, no discrepancy is claimed.';
+
+export const WIND_SOURCED = {
+  t: 'What the texts support',
+  p: 'Kālacakra parallels outer and inner time. A balanced day-and-night is counted as 21,600 breaths. These divide into twelve shifts of 1,800 breaths each. During each shift the primary flow is through one nostril (and its side channel); at the transition, a small number of deep-awareness breaths pass through the central channel and both nostrils. The same 1,800 count is given for each of the twelve zodiac-sign periods of a day and for the flow through each of the twelve zodiac channels of the navel chakra. Half the day the right (solar) side predominates, half the left (lunar) — paralleling the sun’s northern and southern declinations across a year.',
+  m: 'Think of the day as a twelve-slot scheduler. Each slot is budgeted 1,800 breath-cycles. The OS flips the active NIC (nostril / side channel) every slot; for a few packets between slots, traffic runs on the backbone (central channel). The navel wheel is the router with twelve zodiac ports. That architecture is what the sources give. Which wall-clock hour maps to which limb is a later overlay — a UI skin, not the kernel.',
+  r: ['berzinArm', 'berzinInt', 'wallaceInner', 'wallace01', 'wallace04', 'kilty'],
+};
+
+export const WIND_INTRO = {
+  t: '24-Hour Pranic Wind Map',
+  p: 'This tab is a navigable map of the daily prāṇa cycle in Kālacakra terms: twelve two-hour shifts, twelve navel zodiac channels, 1,800 breaths per shift, left/right nostril primacy alternating. Click a shift or drag the scrubber — nothing advances by itself. Cross-links jump to the matching Six Yogas stage, palace floor and elemental field already in the build. The limb path drawn on the figure (secret → hip → navel → chest → shoulder → elbow → wrist → throat → crown) is an interpretive schematic for reading the body hour by hour; see the yellow note.',
+  m: 'The palace outside and the wind-map inside are the same clock read at two scales. Outer: planets and zodiac. Inner: breaths and navel petals. Alternative: the yoga that stops the scheduler. Click a wedge the way you would click a stage — one intentional step, then hold.',
+  r: ['berzinArm', 'berzinInt', 'wallaceInner', 'hopkins'],
+};
+
+export const WIND_CROSS = {
+  t: 'Cross-links to the rest of the build',
+  p: 'Each shift button can jump you to: the Six Yogas dissolution stage whose element matches the shift’s element colour, the palace floor most resonant with that height of the body, and the elemental field on the 64-shakti orbit. The bindu core stays the singularity those dissolutions fall into. Ascension and thögal remain on their own tabs — this map is the daily breath wheel beneath them.',
+  m: 'Same codebase, different viewports. The wind map is the profiler running under the palace renderer.',
+  r: ['berzinArm', 'hopkins'],
+};

@@ -6,10 +6,11 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import * as D from './data.js';
 import { FORMS, INIT, TILT, rng } from './forms.js';
-import { EXPLAIN, STAGE_EXPLAIN, LEVEL_EXPLAIN, DISK_EXPLAIN, FIELD_EXPLAIN, HUMAN_INFO, TUMMO_STEPS, DIALOGUE, REFS, VOICE_NOTE, DIALOGUE_NOTE, PRACTICE_NOTE, shaktiNote, THOGAL_STEPS, THOGAL_INTRO } from './teachings.js';
+import { EXPLAIN, STAGE_EXPLAIN, LEVEL_EXPLAIN, DISK_EXPLAIN, FIELD_EXPLAIN, HUMAN_INFO, TUMMO_STEPS, DIALOGUE, REFS, VOICE_NOTE, DIALOGUE_NOTE, PRACTICE_NOTE, shaktiNote, THOGAL_STEPS, THOGAL_INTRO, WIND_INTRO, WIND_SOURCED, WIND_INTERP_NOTE, WIND_CROSS } from './teachings.js';
 import { shaktiChain, threadChain } from './chains.js';
 import { createHuman } from './human.js';
 import { createAscension, ASC_STEPS, ASC_INTRO, ASC_REFS } from './ascension.js';
+import { createWindMap, WIND_SHIFTS, DAWN_SLOTS, DAWN_WINDOW, BREATHS_PER_SHIFT, BREATHS_PER_DAY, hourToLabel, shiftAtHour } from './windmap.js';
 
 const TAU = Math.PI * 2;
 const DEVA = "'Tiro Devanagari Sanskrit','Noto Sans Devanagari','Noto Serif Devanagari',serif";
@@ -20,7 +21,7 @@ const $ = (s) => document.querySelector(s);
 const state = {
   stage: 0, binduIntensity: D.BINDU_INTENSITY[0], binduLevel: D.BINDU_INTENSITY[0],
   morph: 1, selectedShakti: null, hoveredShakti: null, field: null, labels: true,
-  mode: 'palace', tummoStep: -1, phowa: 0, chain: null, phowaT0: null, phowaPalace: 0, phowaHuman: 0, thogalStep: -1,
+  mode: 'wind', windShift: 0, windHour: 4.5, windDawn: 'pre', tummoStep: -1, phowa: 0, chain: null, phowaT0: null, phowaPalace: 0, phowaHuman: 0, thogalStep: -1,
 };
 window.__state = state;
 
@@ -624,8 +625,8 @@ $('#morph').addEventListener('input', (e) => setMorph(parseFloat(e.target.value)
 $('#labels').addEventListener('change', (e) => { state.labels = e.target.checked; });
 $('#cube').addEventListener('change', (e) => { cubeOfTime.visible = e.target.checked; });
 $('#topView').onclick = () => flyTo(new THREE.Vector3(0, 1250, 0.01), new THREE.Vector3(0, 0, 0));
-$('#resetView').onclick = () => flyTo(state.mode === 'human' ? human.home.pos.clone() : HOME.pos.clone(), state.mode === 'human' ? human.home.target.clone() : HOME.target.clone());
-$('#about').onclick = () => (state.mode === 'human' ? showHumanInfo('intro') : showOverview());
+$('#resetView').onclick = () => { const h = state.mode === 'human' ? human.home : state.mode === 'wind' ? wind.home : HOME; flyTo(h.pos.clone(), h.target.clone()); };
+$('#about').onclick = () => { if (state.mode === 'human') showHumanInfo('intro'); else if (state.mode === 'wind') showWindInfo(); else showOverview(); openDrawer(); };
 
 // ---- expandable explanation helpers
 function refsHTML(keys) { return (keys || []).map((k) => REFS[k]).filter(Boolean).map((r) => r.url ? `<li><a href="${r.url}" target="_blank" rel="noopener">${r.cite}</a></li>` : `<li>${r.cite}</li>`).join(''); }
@@ -753,14 +754,22 @@ function setMorph(e) { state.morph = e; $('#morph').value = e; palaceRoot.scale.
 
 // ------------------------------------------------------------------ Human Maṇḍala mode
 const human = createHuman({ makePoints, glowSprite, makeLabel, lineMat, setFade, state, phowaDur: PHOWA_DUR });
-let camStore = { palace: null, human: { pos: human.home.pos.clone(), target: human.home.target.clone() } };
+const wind = createWindMap({ makePoints, glowSprite, makeLabel, lineMat, setFade, state });
+let camStore = { palace: null, human: { pos: human.home.pos.clone(), target: human.home.target.clone() }, wind: { pos: wind.home.pos.clone(), target: wind.home.target.clone() } };
+
 function setMode(m) {
   if (m === state.mode) return; camStore[state.mode] = { pos: camera.position.clone(), target: controls.target.clone() };
   state.mode = m; fly = null; const c = camStore[m] || { pos: HOME.pos.clone(), target: HOME.target.clone() }; camera.position.copy(c.pos); controls.target.copy(c.target); controls.update();
-  renderPass.scene = m === 'human' ? human.scene : scene; controls.minDistance = m === 'human' ? 8 : 20;
+  renderPass.scene = m === 'human' ? human.scene : m === 'wind' ? wind.scene : scene;
+  controls.minDistance = (m === 'human' || m === 'wind') ? 8 : 20;
   document.body.classList.toggle('human', m === 'human');
+  document.body.classList.toggle('wind', m === 'wind');
+  document.body.classList.toggle('palace', m === 'palace');
   document.querySelectorAll('#tabs [data-mode]').forEach((b) => b.classList.toggle('active', b.dataset.mode === m));
-  if (m === 'human') { showHumanInfo('intro'); tummoText(); } else showOverview();
+  closeDrawer();
+  if (m === 'human') { showHumanInfo('intro'); tummoText(); }
+  else if (m === 'wind') { windUI(); showWindInfo(); }
+  else showOverview();
 }
 function showHumanInfo(key, extra = '') { const H = HUMAN_INFO[key]; const h = HUMAN_INFO;
   $('#info').innerHTML = `<h2>${key === 'intro' ? 'The Human Maṇḍala — Three Kāyas' : H.t}</h2>${extra}
@@ -811,6 +820,66 @@ function tummoText() { const i = state.tummoStep; document.querySelectorAll('.ts
   if (i < 0) { $('#tummoText').innerHTML = `<b>Choose a step.</b> Each click shows one stage of the inner-fire (tummo) sequence on the holographic body.<div class="note small">${PRACTICE_NOTE}</div>`; return; }
   const s = TUMMO_STEPS[i]; $('#tummoText').innerHTML = `<b>${s.t}</b><ul class="inst">${s.inst.map((x) => `<li>${x}</li>`).join('')}</ul>${ex(s, 'Explain · metaphor · references ▸')}<div class="note small">Educational overview only — practised traditionally only with empowerment and a qualified teacher.</div>`; }
 
+
+// ------------------------------------------------------------------ Wind Map UI (click-only)
+function openDrawer() { $('#info').classList.add('open'); $('#drawerBtn').classList.add('on'); $('#drawerBtn').textContent = 'Explain ▾'; }
+function closeDrawer() { $('#info').classList.remove('open'); $('#drawerBtn').classList.remove('on'); $('#drawerBtn').textContent = 'Explain ▸'; }
+function toggleDrawer() { if ($('#info').classList.contains('open')) closeDrawer(); else openDrawer(); }
+$('#drawerBtn').onclick = () => toggleDrawer();
+
+function setWindHour(h) { wind.setHour(h, clock.elapsedTime); state.windHour = wind.S.hour; state.windShift = wind.S.shift; state.windDawn = wind.S.dawnSlot; windUI(); }
+function setWindShift(i) { wind.setShift(i, clock.elapsedTime); state.windHour = wind.S.hour; state.windShift = wind.S.shift; state.windDawn = wind.S.dawnSlot; windUI(); }
+function setWindDawn(id) { wind.setDawn(id, clock.elapsedTime); state.windHour = wind.S.hour; state.windShift = wind.S.shift; state.windDawn = wind.S.dawnSlot; windUI(); showWindInfo(); }
+
+function windUI() {
+  const sh = WIND_SHIFTS[wind.S.shift];
+  $('#windWarn').textContent = WIND_INTERP_NOTE;
+  $('#windHourLbl').textContent = hourToLabel(wind.S.hour);
+  const scrub = Math.round((((wind.S.hour - 0) + 24) % 24) * 10); // 0.1h steps → but scrub is 0..239 for 6min
+  $('#windScrub').value = Math.round(wind.S.hour * 10) % 240;
+  $('#windRingLbl').textContent = `${sh.sign} · ${sh.nostril} nostril · ${BREATHS_PER_SHIFT} breaths`;
+  document.querySelectorAll('.wshift').forEach((b) => b.classList.toggle('active', +b.dataset.shift === wind.S.shift));
+  document.querySelectorAll('#windDawn .btn').forEach((b) => b.classList.toggle('active', b.dataset.dawn === wind.S.dawnSlot));
+  const dawn = DAWN_SLOTS.find((d) => d.id === wind.S.dawnSlot);
+  $('#windMeta').innerHTML = `<b>${sh.sign}</b> <span class="muted">${hourToLabel(sh.startH)}–${hourToLabel(sh.endH)}</span><br>
+    Nostril: <b>${sh.nostril}</b> · Element colour: <b style="color:${sh.color}">${sh.elem}</b><br>
+    Region (interpretive): ${dawn ? dawn.title + ' — ' + dawn.entry : sh.region}<br>
+    Limbs lit: ${[...wind.S.limbs].join(', ')}<br>
+    Cross-link: yoga stage ${sh.yoga} · field <b>${sh.field}</b> · floor <b>${sh.floor}</b>`;
+  $('#windExplainBody').innerHTML = `${ex(WIND_SOURCED, 'What the texts support ▸')}${ex(WIND_INTRO, 'About this map ▸')}${ex(WIND_CROSS, 'Cross-links ▸')}<div class="warn">${WIND_INTERP_NOTE}</div>` +
+    (dawn ? `<details class="ex"><summary>${dawn.title}</summary><p>${dawn.plain}</p><p class="muted">${dawn.channels} · ${dawn.entry} · ${dawn.element}</p></details>` : '');
+}
+
+function showWindInfo(limbKey) {
+  const sh = WIND_SHIFTS[wind.S.shift];
+  const dawn = DAWN_SLOTS.find((d) => d.id === wind.S.dawnSlot);
+  $('#info').innerHTML = `<h2>24-Hour Pranic Wind Map</h2>
+    <div class="badge" style="display:inline-block;margin:4px 0;padding:3px 8px;border-radius:6px;background:rgba(90,160,255,.15);border:1px solid rgba(120,180,255,.35);color:#9fd0ff;font-size:11px">Sourced core: ${BREATHS_PER_DAY.toLocaleString()} breaths / day = 12 × ${BREATHS_PER_SHIFT}</div>
+    <div class="warn" style="margin:6px 0;padding:6px 8px;border-left:2px solid #ffb84a;background:rgba(255,180,60,.08);color:#e8d4a8;font-size:11px;line-height:1.4">${WIND_INTERP_NOTE}</div>
+    ${limbKey ? `<p class="muted">Limb focus: <b>${limbKey}</b> (interpretive highlight)</p>` : ''}
+    <p><b style="color:${sh.color}">${sh.sign}</b> · ${hourToLabel(sh.startH)}–${hourToLabel(sh.endH)} · ${sh.nostril} nostril primary</p>
+    ${dawn ? `<p><b>${dawn.title}</b><br>${dawn.plain}</p>` : `<p>${sh.region}</p>`}
+    ${ex(WIND_SOURCED)}${ex(WIND_INTRO)}${ex(WIND_CROSS)}
+    <div class="rh">References</div><ul class="refs">${refsHTML(['berzinArm','berzinInt','wallaceInner','wallace01','hopkins','kilty'])}</ul>`;
+}
+
+// build shift buttons once
+{ const box = $('#windShifts');
+  WIND_SHIFTS.forEach((sh) => { const b = document.createElement('button'); b.className = 'wshift'; b.dataset.shift = sh.i; b.style.setProperty('--c', sh.color);
+    b.innerHTML = `<span class="dot"></span><span class="t">${hourToLabel(sh.startH)} · ${sh.sign.split('·')[0].trim()}<small style="display:block;color:var(--dim);font-size:10px">${sh.nostril} · ${sh.elem} · interpretive: ${sh.limbs.join('→')}</small></span>`;
+    b.onclick = () => { setWindShift(sh.i); }; box.appendChild(b); });
+  const dawnBox = $('#windDawn');
+  DAWN_SLOTS.forEach((d) => { const b = document.createElement('button'); b.className = 'btn'; b.dataset.dawn = d.id; b.textContent = d.title.split('·')[0].trim(); b.onclick = () => setWindDawn(d.id); dawnBox.appendChild(b); });
+  $('#windScrub').oninput = (e) => setWindHour((+e.target.value) / 10);
+  $('#wFocus').onclick = () => { const [p, t] = wind.focus(); flyTo(p, t); };
+  $('#wReset').onclick = () => { wind.reset(clock.elapsedTime); state.windHour = wind.S.hour; state.windShift = wind.S.shift; state.windDawn = wind.S.dawnSlot; windUI(); };
+  $('#wLinkYoga').onclick = () => { const sh = WIND_SHIFTS[wind.S.shift]; setMode('palace'); setStage(sh.yoga); };
+  $('#wLinkField').onclick = () => { const sh = WIND_SHIFTS[wind.S.shift]; const fi = D.FIELDS.findIndex((f) => f.key === sh.field); setMode('palace'); if (fi >= 0) selectField(fi); };
+  const wst = $('#windSheetToggle'); if (wst) wst.onclick = () => { const p = $('#windPanel'); p.classList.toggle('collapsed'); wst.textContent = p.classList.contains('collapsed') ? '▴ Expand wind controls' : '▾ Collapse wind controls'; };
+  windUI();
+}
+
+
 // ------------------------------------------------------------------ Purpose & References overlays
 function openOverlay(kind) { const o = $('#overlay'); o.style.display = 'grid'; state.overlay = kind;
   if (kind === 'purpose') $('#ovBody').innerHTML = `<h2>The Purpose of Kālacakra</h2><div class="sub2">An imagined dialogue between His Holiness the Dalai Lama and Longchen Rabjam, offered to future liberated beings</div>
@@ -828,7 +897,7 @@ document.querySelectorAll('#tabs [data-ov]').forEach((b) => b.onclick = () => op
 // picking
 const ray = new THREE.Raycaster(); const mouse = new THREE.Vector2(); let down = null; const tip = $('#tip');
 function pick(ev) { mouse.set(ev.clientX / innerWidth * 2 - 1, -(ev.clientY / innerHeight) * 2 + 1); ray.setFromCamera(mouse, camera);
-  const src = state.mode === 'human' ? human.pickables : pickables.concat(blissShaktiSprites, extraPicks);
+  const src = state.mode === 'human' ? human.pickables : state.mode === 'wind' ? wind.pickables : pickables.concat(blissShaktiSprites, extraPicks);
   const vis = src.filter((o) => { let v = o.visible; o.traverseAncestors((a) => { if (!a.visible) v = false; }); return v && (o.material.opacity === undefined || o.material.opacity > 0.05); }); const h = ray.intersectObjects(vis, false); return h.length ? h[0].object : null; }
 function describe(o) { const u = o.userData;
   if (u.type === 'shakti') { const s = D.SHAKTIS[u.idx]; return `<span class="b">${s.bija}</span><b>${s.name}</b> — ${D.FIELDS[s.field].name}: ${s.formName} · click to play its thread`; }
@@ -856,6 +925,7 @@ canvas.addEventListener('pointerup', (ev) => {
   if (!down || Math.hypot(ev.clientX - down[0], ev.clientY - down[1]) > 5) return; const o = pick(ev); if (!o) return; activate(o); });
 function activate(o) { const u = o.userData;
   if (state.mode === 'human') { if (u.type === 'h_wheel') showHumanInfo('wheels', `<div class="muted">${u.name}</div>`); else if (u.type) showHumanInfo(u.type.slice(2)); return; }
+  if (state.mode === 'wind') { if (u.type === 'w_shift') { setWindShift(u.i); openDrawer(); showWindInfo(); } else if (u.type === 'w_limb') { openDrawer(); showWindInfo(u.key); } return; }
   if (u.type === 'shakti') selectShakti(u.idx);
   else if (u.type === 'field') selectField(state.field === u.fi ? null : u.fi);
   else if (u.type === 'matrika') { const m = D.MATRIKAS[u.k]; const F = D.FIELDS.find((f) => f.matrika === u.k);
@@ -894,6 +964,7 @@ function animate() {
   state.phowaPalace = st === 8 ? Math.min(1, (t - stageT0) / PHOWA_DUR) : 0;
   state.phowaHuman = state.tummoStep === PHOWA_STEP ? Math.min(1, (t - human.stepT0) / PHOWA_DUR) : 0;
   if (state.mode === 'human') { human.update(t, dt); bloom.strength = 0.75; bloom.radius = 0.5; composer.render(); updateLabels(human.scene); return; }
+  if (state.mode === 'wind') { wind.update(t, dt); state.windShift = wind.S.shift; state.windHour = wind.S.hour; state.windDawn = wind.S.dawnSlot; bloom.strength = 0.7; bloom.radius = 0.45; composer.render(); updateLabels(wind.scene); return; }
   // phowa progress: only after the phowa button was clicked (stage 8), eased over PHOWA_DUR seconds
   const phT = st === 8 ? Math.min(1, (t - stageT0) / PHOWA_DUR) : 0, phE = phT * phT * (3 - 2 * phT); state.phowa = phT;
 
@@ -1057,8 +1128,11 @@ async function boot() {
   try { await Promise.race([Promise.all([document.fonts.load(`64px 'Tiro Devanagari Sanskrit'`, 'लं'), document.fonts.load(`600 20px 'Cormorant Garamond'`)]), new Promise((r) => setTimeout(r, 3500))]); } catch (e) {}
   // regenerate canvas-text textures after fonts are available
   for (const sp of shaktiSprites) { const s = D.SHAKTIS[sp.userData.idx]; sp.material.map = bijaTex(s.bija, D.FIELDS[s.field].color, D.FIELDS[s.field].key); sp.material.needsUpdate = true; }
-  stageText(); showOverview(); setMorph(1); animate();
-  window.__app = { setAscension, asc, now: () => clock.elapsedTime, setThogal, setStage, selectShakti, selectField, setMorph, focusShakti, focusCurrent, flyTo, setMode, setTummo, playThread, goPhase, stopChain, openOverlay, projectShakti: (i) => { const v = shaktiWorld(i, new THREE.Vector3()).project(camera); return [(v.x + 1) / 2 * innerWidth, (1 - v.y) / 2 * innerHeight]; }, getChain: () => chain && { i: chain.i, n: chain.phases.length, playing: chain.playing, form: chain.phases[chain.i].form }, topView: () => $('#topView').click(), resetView: () => $('#resetView').click(), camera, controls, state };
+  stageText(); setMorph(1); document.body.classList.add('wind'); windUI(); showWindInfo(); // hero tab: Wind Map
+  // park palace/human cameras; current mode already 'wind'
+  camera.position.copy(wind.home.pos); controls.target.copy(wind.home.target); controls.update(); renderPass.scene = wind.scene; controls.minDistance = 8;
+  animate();
+  window.__app = { setAscension, asc, wind, setWindShift, setWindHour, setWindDawn, now: () => clock.elapsedTime, setThogal, setStage, selectShakti, selectField, setMorph, focusShakti, focusCurrent, flyTo, setMode, setTummo, playThread, goPhase, stopChain, openOverlay, projectShakti: (i) => { const v = shaktiWorld(i, new THREE.Vector3()).project(camera); return [(v.x + 1) / 2 * innerWidth, (1 - v.y) / 2 * innerHeight]; }, getChain: () => chain && { i: chain.i, n: chain.phases.length, playing: chain.playing, form: chain.phases[chain.i].form }, topView: () => $('#topView').click(), resetView: () => $('#resetView').click(), camera, controls, state };
   setTimeout(() => { $('#loading').style.opacity = 0; setTimeout(() => $('#loading').remove(), 1000); }, 300);
   window.__ready = true;
 }
