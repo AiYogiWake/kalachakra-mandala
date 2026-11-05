@@ -17,10 +17,11 @@ A single-page Three.js (WebGL) experience of the Kalachakra mandala palace.
 - **Aṣṭamātṛkā ring** of the eight mothers.
 - **Emanation cascade**: bija → ḍākinī → Buddha family → planet → nakshatra, drawn as animated particle streams.
 - Orbit/zoom, field isolation, 2D plan ↔ 3D extrusion slider.
+- **24-Hour Pranic Wind Map** (default hero tab): twelve two-hour shifts × 1,800 breaths = 21,600 / day, twelve navel zodiac channels, left/right nostril primacy, clickable scrubber and dawn window (4:30–8:30 AM). Limb→hour path is labelled **interpretive schematic**.
 
 The palace proportions, floors, disks, dissolution signs, five families, the eight Great-Bliss shaktis and the Aṣṭamātṛkā names follow commonly published descriptions. The per-shakti bijas, descriptive names and the ḍākinī/family/planet/nakshatra assignments are an artistic, interpretive mapping made for this visualization.
 
-Static files only: `index.html`, `main.js`, `data.js`, `forms.js`, `chains.js`, `teachings.js`, `human.js`. Three.js loads from the unpkg CDN through an import map. To run it locally: `python3 -m http.server`.
+Static files only: `index.html`, `main.js`, `data.js`, `forms.js`, `chains.js`, `teachings.js`, `human.js`, `thogal3d.js`, `ascension.js`, `windmap.js`. Three.js loads from the unpkg CDN through an import map. To run it locally: `python3 -m http.server`.
 
 ## v4 — crisp labels, thögal in depth, elemental signatures
 - **Labels** are now an HTML overlay (`#labels3d`), projected from 3D every frame: crisp at any zoom/DPR, never passed through bloom, backplate + text-shadow, serif titles / sans labels / Noto Sans Devanagari for bījas, distance fade, screen-space de-overlap (nudge with leader line, else hide), clickable where the 3D object was. The 64 bīja syllables are crisp gold HTML text on the nodes.
@@ -34,3 +35,9 @@ New `ascension.js`. Palace tab → **Ascension** panel (also reachable from the 
 1. Rising from the table · 2. Crossing Kailash — stardust · 3. Lifting the sadhus · 4. The galaxy vortex — plus Back, Replay, Reset, Focus.
 Each click plays one eased step and holds; nothing advances and the camera never moves by itself. Mount Kailash and Lake Manasarovar are **symbolic** models; the italic lines are an **imagined** voice in the spirit of Longchenpa, not quotations. The bindu and its glare are untouched.
 References: Wikipedia — Mount Kailash, Mount Meru, Lake Manasarovar.
+
+## v6 — 24-Hour Pranic Wind Map + layout
+- New default hero tab **24-Hour Pranic Wind Map** (`windmap.js`): circular 24h / 12-shift ring around a holographic figure, scrubber (6-minute steps), dawn slots for the next four hours after 4:30 AM, cross-links into Six Yogas stages and elemental fields.
+- **Sourced:** 1,800 breaths per two-hour shift, twelve shifts, twelve navel zodiac channels, 21,600 breaths/day, alternating nostril primacy — Alexander Berzin / Study Buddhism (Armageddon parallels page + Internal Kalachakra). Links checked.
+- **Interpretive (bannered):** fixed clock → limb mappings (shoulder/elbow/wrist/hip/chest…), pre-dawn left-channel dominance at 4:30 AM, dawn earth→water timing, ground/secret-place entry. No claimed discrepancies among root tantra / Vimalaprabhā / later manuals without checked passages.
+- **Layout:** Explain drawer closed by default (desktop side / phone bottom sheet); expandables collapsed; Wind Map is the opening view; phone wind controls start collapsed with an expand handle. Verified at 390×844 and 1440×900.

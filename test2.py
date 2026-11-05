@@ -13,6 +13,9 @@ async def main():
         pg.on('pageerror', lambda e: logs.append(f'PAGEERROR: {e}'))
         await pg.goto(URL)
         await pg.wait_for_function('window.__ready === true', timeout=90000)
+        # v6: Wind Map is the hero/default tab — switch to Palace for the existing 99 assertions
+        await pg.click('#tabs [data-mode="palace"]')
+        await pg.wait_for_function("() => window.__state.mode === 'palace'", timeout=15000)
         await pg.wait_for_timeout(1500)
         S = lambda: pg.evaluate('({stage: __state.stage, bi: __state.binduIntensity, bl: __state.binduLevel, th: __state.thogal, ts: __state.thogalStep, phowa: __state.phowa, pp: __state.phowaPalace, ph: __state.phowaHuman, chain: __state.chain, tummo: __state.tummoStep, mode: __state.mode, active: [...document.querySelectorAll("#stageButtons .stage.active")].map(b=>+b.dataset.stage), cam: __app.camera.position.toArray().map(v=>+v.toFixed(2))})')
         s0 = await S()
