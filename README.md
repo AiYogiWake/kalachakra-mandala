@@ -1,5 +1,10 @@
 # Kālacakra Maṇḍala Palace — interactive 3D
 
+## Collapsing the Wheel of Time (v7)
+
+New tab exploring a **user-synthesis** reading of Kālacakra as collapsing the wheel of time by closing the gap between brief central-channel windows. Sourced arithmetic (Changkya / Kilty; Berzin): 56¼ central winds of each 1,800-breath shift ≈ 1 m 52.5 s per hour; 675 central winds/day. The 4 min/hour figure and “close the gap = collapse of time” reading are flagged as interpretive. Click-only Close the gap animation; cross-links to Clear Light yoga (stage 6) and the bindu.
+
+
 A single-page Three.js (WebGL) experience of the Kalachakra mandala palace.
 
 **Live:** https://aiyogiwake.github.io/kalachakra-mandala/
