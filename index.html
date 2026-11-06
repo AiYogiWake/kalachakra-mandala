@@ -191,6 +191,38 @@
     #windHourLbl { font-size: 18px; }
   }
 
+
+  /* ---- Collapse of Time tab ---- */
+  #collapsePanel { top: 58px; left: 14px; width: 300px; padding: 12px; z-index: 5; display: none; }
+  #collapsePanel h1 { font-size: 17px; }
+  #collapsePanel .sub { font-size: 11px; color: var(--dim); margin: 2px 0 8px; }
+  #collapsePanel .badge { display: inline-block; margin: 4px 0 8px; padding: 3px 8px; border-radius: 6px; background: rgba(90,160,255,.15); border: 1px solid rgba(120,180,255,.35); color: #9fd0ff; font-size: 10.5px; }
+  #collapsePanel .warn { margin: 6px 0; padding: 6px 8px; border-left: 2px solid #ffb84a; background: rgba(255,180,60,.08); color: #e8d4a8; font-size: 10.5px; line-height: 1.4; }
+  #collapseScrub { width: 100%; accent-color: #ffd36b; margin: 4px 0; }
+  #collapseMinuteLbl { font-family: 'Cormorant Garamond', serif; font-size: 20px; color: var(--gold); }
+  #collapseMeta { font-size: 11.5px; line-height: 1.45; color: #b9c2f0; margin-top: 6px; }
+  #collapseMeta b { color: var(--gold); }
+  #collapseRing { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 6; padding: 8px 12px; display: none; align-items: center; gap: 8px; max-width: min(720px, calc(100% - 40px)); }
+  #collapsePanel .sheet-handle { display: none; }
+  body.collapse #yogas, body.collapse #fieldbar, body.collapse #controls .rowmorph, body.collapse #chainBar, body.collapse #humanPanel, body.collapse #windPanel, body.collapse #windRing { display: none !important; }
+  body.collapse #collapsePanel, body.collapse #collapseRing { display: flex; }
+  body.collapse #collapsePanel { display: block; }
+  body.wind #collapsePanel, body.human #collapsePanel, body.palace #collapsePanel,
+  body.wind #collapseRing, body.human #collapseRing, body.palace #collapseRing { display: none !important; }
+  @media (min-width: 701px) { #collapsePanel.collapsed .collapse-advanced { display: block !important; } #collapsePanel.collapsed { max-height: calc(100% - 175px); overflow: auto; } }
+  @media (max-width: 700px) {
+    #collapsePanel {
+      top: auto; left: 0; right: 0; bottom: 0; width: 100%; max-height: 32vh;
+      border-radius: 14px 14px 0 0; padding: 8px 12px 14px; overflow: auto;
+    }
+    #collapsePanel.collapsed { max-height: 112px; overflow: hidden; }
+    #collapsePanel.collapsed .collapse-advanced { display: none; }
+    #collapsePanel:not(.collapsed) { max-height: 48vh; }
+    #collapsePanel .sheet-handle { display: block; text-align: center; cursor: pointer; color: var(--gold); font-size: 11px; padding: 2px 0 6px; }
+    #collapseRing { left: 8px; right: auto; bottom: auto; top: 78px; transform: none; max-width: 55vw; padding: 5px 8px; }
+    #collapseMinuteLbl { font-size: 17px; }
+  }
+
 </style>
 </head>
 <body class="wind">
@@ -210,7 +242,7 @@
   <details id="ascMore"><summary>Explanation</summary><div id="ascText"></div></details>
 </div>
 
-<div id="tabs" class="panel"><button class="tab active" data-mode="wind">24-Hour Pranic Wind Map</button><button class="tab" data-mode="palace">Palace of Time</button><button class="tab" data-mode="human">The Human Maṇḍala — Three Kāyas</button><button class="tab" data-ov="purpose">Purpose of Kālacakra</button><button class="tab" data-ov="refs">References</button></div>
+<div id="tabs" class="panel"><button class="tab active" data-mode="wind">24-Hour Pranic Wind Map</button><button class="tab" data-mode="collapse">Collapsing the Wheel of Time</button><button class="tab" data-mode="palace">Palace of Time</button><button class="tab" data-mode="human">The Human Maṇḍala — Three Kāyas</button><button class="tab" data-ov="purpose">Purpose of Kālacakra</button><button class="tab" data-ov="refs">References</button></div>
 <button id="drawerBtn" type="button" title="Open explanations">Explain ▸</button>
 <div id="windPanel" class="panel collapsed">
   <div class="sheet-handle" id="windSheetToggle">▴ Expand wind controls</div>
@@ -236,6 +268,33 @@
   </div>
 </div>
 <div id="windRing" class="panel"><span class="muted" style="font-size:11px">Active shift</span><b id="windRingLbl" style="color:var(--gold);font-family:'Cormorant Garamond',serif;font-size:16px"></b></div>
+<div id="collapsePanel" class="panel collapsed">
+  <div class="sheet-handle" id="collapseSheetToggle">▴ Expand collapse controls</div>
+  <h1>Collapsing the Wheel of Time</h1>
+  <div class="sub">Click-only · nothing advances by itself.</div>
+  <div class="badge" id="collapseBadge">Sourced window ≈ 1 m 52 s / hour · 56¼ central winds / shift</div>
+  <div class="warn" id="collapseWarn"></div>
+  <div id="collapseMinuteLbl">0:00 into the hour</div>
+  <input id="collapseScrub" type="range" min="0" max="60" step="0.5" value="0" />
+  <div class="sub" style="margin-top:2px">Scrub · minute within the hour ring</div>
+  <div class="collapse-advanced">
+  <div class="rh">Central-channel window</div>
+  <div class="wdawn" id="collapseModes">
+    <button class="btn active" id="cModeSourced" data-cmode="sourced">Sourced · ~1 m 52 s</button>
+    <button class="btn" id="cModeUser" data-cmode="user">User · 4 min / hour</button>
+  </div>
+  <div id="collapseMeta"></div>
+  <div class="ascrow" style="margin-top:8px">
+    <button class="btn" id="cCloseGap">◈ Close the gap</button>
+    <button class="btn" id="cReset">✕ Reset</button>
+    <button class="btn" id="cFocus">⌖ Focus</button>
+    <button class="btn" id="cLinkYoga">→ Clear Light yoga</button>
+    <button class="btn" id="cLinkBindu">→ Bindu core</button>
+  </div>
+  <details class="ex" id="collapseExplain"><summary>Sourced arithmetic · user synthesis ▸</summary><div id="collapseExplainBody"></div></details>
+  </div>
+</div>
+<div id="collapseRing" class="panel"><span class="muted" style="font-size:11px">Hour window</span><b id="collapseRingLbl" style="color:var(--gold);font-family:'Cormorant Garamond',serif;font-size:16px"></b></div>
 <div id="humanPanel" class="panel"><h1>Inner fire · Tummo</h1><div class="sub">Holographic body · click a step; nothing advances by itself.</div><div id="tummoButtons"></div><h1 class="th">Thögal · the four visions</h1><div class="sub">Picks up from the kati channel. One click per vision.</div><div id="thogalButtons"></div><button class="btn" id="hFocus">⌖ Focus</button><button class="btn" id="hAsc" title="Open the Ascension sequence in the Palace tab">⇡ Ascension</button><div id="tummoText"></div></div>
 <div id="info" class="panel"></div>
 <div id="chainBar" class="panel" style="display:none"><div><span id="chPhase"></span><span id="chName"></span></div><div id="chVoice"></div><div id="chDots"></div><div class="ctl"><button id="chPrev">◀ Step back</button><button id="chPlay">⏸ Pause</button><button id="chNext">Step ▶</button><button id="chFocus">⌖ Focus</button><button id="chClose">✕ Close</button></div></div>
