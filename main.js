@@ -6,11 +6,12 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import * as D from './data.js';
 import { FORMS, INIT, TILT, rng } from './forms.js';
-import { EXPLAIN, STAGE_EXPLAIN, LEVEL_EXPLAIN, DISK_EXPLAIN, FIELD_EXPLAIN, HUMAN_INFO, TUMMO_STEPS, DIALOGUE, REFS, VOICE_NOTE, DIALOGUE_NOTE, PRACTICE_NOTE, shaktiNote, THOGAL_STEPS, THOGAL_INTRO, WIND_INTRO, WIND_SOURCED, WIND_INTERP_NOTE, WIND_CROSS } from './teachings.js';
+import { EXPLAIN, STAGE_EXPLAIN, LEVEL_EXPLAIN, DISK_EXPLAIN, FIELD_EXPLAIN, HUMAN_INFO, TUMMO_STEPS, DIALOGUE, REFS, VOICE_NOTE, DIALOGUE_NOTE, PRACTICE_NOTE, shaktiNote, THOGAL_STEPS, THOGAL_INTRO, WIND_INTRO, WIND_SOURCED, WIND_INTERP_NOTE, WIND_CROSS, COLLAPSE_INTRO, COLLAPSE_SOURCED, COLLAPSE_SYNTHESIS_NOTE, COLLAPSE_CROSS } from './teachings.js';
 import { shaktiChain, threadChain } from './chains.js';
 import { createHuman } from './human.js';
 import { createAscension, ASC_STEPS, ASC_INTRO, ASC_REFS } from './ascension.js';
 import { createWindMap, WIND_SHIFTS, DAWN_SLOTS, DAWN_WINDOW, BREATHS_PER_SHIFT, BREATHS_PER_DAY, hourToLabel, shiftAtHour } from './windmap.js';
+import { createCollapse, COLLAPSE_MATH } from './collapse.js';
 
 const TAU = Math.PI * 2;
 const DEVA = "'Tiro Devanagari Sanskrit','Noto Sans Devanagari','Noto Serif Devanagari',serif";
@@ -21,7 +22,7 @@ const $ = (s) => document.querySelector(s);
 const state = {
   stage: 0, binduIntensity: D.BINDU_INTENSITY[0], binduLevel: D.BINDU_INTENSITY[0],
   morph: 1, selectedShakti: null, hoveredShakti: null, field: null, labels: true,
-  mode: 'wind', windShift: 0, windHour: 4.5, windDawn: 'pre', tummoStep: -1, phowa: 0, chain: null, phowaT0: null, phowaPalace: 0, phowaHuman: 0, thogalStep: -1,
+  mode: 'wind', windShift: 0, windHour: 4.5, windDawn: 'pre', collapseMinute: 0, collapseMode: 'sourced', collapseClosed: false, tummoStep: -1, phowa: 0, chain: null, phowaT0: null, phowaPalace: 0, phowaHuman: 0, thogalStep: -1,
 };
 window.__state = state;
 
@@ -625,8 +626,8 @@ $('#morph').addEventListener('input', (e) => setMorph(parseFloat(e.target.value)
 $('#labels').addEventListener('change', (e) => { state.labels = e.target.checked; });
 $('#cube').addEventListener('change', (e) => { cubeOfTime.visible = e.target.checked; });
 $('#topView').onclick = () => flyTo(new THREE.Vector3(0, 1250, 0.01), new THREE.Vector3(0, 0, 0));
-$('#resetView').onclick = () => { const h = state.mode === 'human' ? human.home : state.mode === 'wind' ? wind.home : HOME; flyTo(h.pos.clone(), h.target.clone()); };
-$('#about').onclick = () => { if (state.mode === 'human') showHumanInfo('intro'); else if (state.mode === 'wind') showWindInfo(); else showOverview(); openDrawer(); };
+$('#resetView').onclick = () => { const h = state.mode === 'human' ? human.home : state.mode === 'wind' ? wind.home : state.mode === 'collapse' ? collapse.home : HOME; flyTo(h.pos.clone(), h.target.clone()); };
+$('#about').onclick = () => { if (state.mode === 'human') showHumanInfo('intro'); else if (state.mode === 'wind') showWindInfo(); else if (state.mode === 'collapse') showCollapseInfo(); else showOverview(); openDrawer(); };
 
 // ---- expandable explanation helpers
 function refsHTML(keys) { return (keys || []).map((k) => REFS[k]).filter(Boolean).map((r) => r.url ? `<li><a href="${r.url}" target="_blank" rel="noopener">${r.cite}</a></li>` : `<li>${r.cite}</li>`).join(''); }
@@ -755,20 +756,23 @@ function setMorph(e) { state.morph = e; $('#morph').value = e; palaceRoot.scale.
 // ------------------------------------------------------------------ Human Maṇḍala mode
 const human = createHuman({ makePoints, glowSprite, makeLabel, lineMat, setFade, state, phowaDur: PHOWA_DUR });
 const wind = createWindMap({ makePoints, glowSprite, makeLabel, lineMat, setFade, state });
-let camStore = { palace: null, human: { pos: human.home.pos.clone(), target: human.home.target.clone() }, wind: { pos: wind.home.pos.clone(), target: wind.home.target.clone() } };
+const collapse = createCollapse({ makePoints, glowSprite, makeLabel, lineMat, setFade, state });
+let camStore = { palace: null, human: { pos: human.home.pos.clone(), target: human.home.target.clone() }, wind: { pos: wind.home.pos.clone(), target: wind.home.target.clone() }, collapse: { pos: collapse.home.pos.clone(), target: collapse.home.target.clone() } };
 
 function setMode(m) {
   if (m === state.mode) return; camStore[state.mode] = { pos: camera.position.clone(), target: controls.target.clone() };
   state.mode = m; fly = null; const c = camStore[m] || { pos: HOME.pos.clone(), target: HOME.target.clone() }; camera.position.copy(c.pos); controls.target.copy(c.target); controls.update();
-  renderPass.scene = m === 'human' ? human.scene : m === 'wind' ? wind.scene : scene;
-  controls.minDistance = (m === 'human' || m === 'wind') ? 8 : 20;
+  renderPass.scene = m === 'human' ? human.scene : m === 'wind' ? wind.scene : m === 'collapse' ? collapse.scene : scene;
+  controls.minDistance = (m === 'human' || m === 'wind' || m === 'collapse') ? 8 : 20;
   document.body.classList.toggle('human', m === 'human');
   document.body.classList.toggle('wind', m === 'wind');
+  document.body.classList.toggle('collapse', m === 'collapse');
   document.body.classList.toggle('palace', m === 'palace');
   document.querySelectorAll('#tabs [data-mode]').forEach((b) => b.classList.toggle('active', b.dataset.mode === m));
   closeDrawer();
   if (m === 'human') { showHumanInfo('intro'); tummoText(); }
   else if (m === 'wind') { windUI(); showWindInfo(); }
+  else if (m === 'collapse') { collapseUI(); showCollapseInfo(); }
   else showOverview();
 }
 function showHumanInfo(key, extra = '') { const H = HUMAN_INFO[key]; const h = HUMAN_INFO;
@@ -879,6 +883,67 @@ function showWindInfo(limbKey) {
   windUI();
 }
 
+// ------------------------------------------------------------------ Collapse of Time UI (click-only)
+function fmtWindow(sec) {
+  const m = Math.floor(sec / 60), s = Math.round(sec - m * 60);
+  return m ? `${m} m ${s} s` : `${s} s`;
+}
+function iMinuteFromShift(i) { return (i % 12) * 5; }
+function setCollapseMinute(m) { collapse.setMinute(m, clock.elapsedTime); state.collapseMinute = collapse.S.minute; state.collapseClosed = collapse.S.closed; collapseUI(); }
+function setCollapseMode(mode) { collapse.setWindowMode(mode, clock.elapsedTime); state.collapseMode = collapse.S.windowMode; collapseUI(); showCollapseInfo(); }
+function doCloseGap() { collapse.closeGap(clock.elapsedTime); state.collapseClosed = true; collapseUI(); openDrawer(); showCollapseInfo(); }
+
+function collapseUI() {
+  const s = collapse.S; const M = COLLAPSE_MATH;
+  $('#collapseWarn').textContent = COLLAPSE_SYNTHESIS_NOTE;
+  const mm = Math.floor(s.minute), ss = Math.round((s.minute - mm) * 60);
+  $('#collapseMinuteLbl').textContent = `${mm}:${String(ss).padStart(2,'0')} into the hour`;
+  $('#collapseScrub').value = s.minute;
+  $('#cModeSourced').classList.toggle('active', s.windowMode === 'sourced');
+  $('#cModeUser').classList.toggle('active', s.windowMode === 'user');
+  const winLabel = s.windowMode === 'user' ? 'USER · 4 min / hour (interpretive)' : `SOURCED · ≈ ${fmtWindow(M.centralSecondsPerHourSourced)} / hour`;
+  $('#collapseBadge').textContent = s.windowMode === 'user'
+    ? 'User datum: 4 min / hour (= 6.67% of the hour) — interpretive'
+    : `Sourced: 56¼ / 1800 = 3.125% → ≈ ${fmtWindow(M.centralSecondsPerHourSourced)} / hour · 675 central winds / day`;
+  $('#collapseRingLbl').textContent = s.closed
+    ? 'Gap closed · continuous central-channel stream'
+    : `${winLabel} · gap = the rest of the hour`;
+  $('#collapseMeta').innerHTML = `<b>Arithmetic (sourced)</b><br>
+    Petal winds / shift: <b>${M.petalPerShift}</b> · Central: <b>${M.centralPerShift}</b> · Total: <b>${M.breathsPerShift}</b><br>
+    Central fraction: <b>${(M.centralFraction*100).toFixed(3)}%</b> (= ${M.centralPerShift}/${M.breathsPerShift})<br>
+    Per ≈2 h shift (7200 s): central ≈ <b>${M.centralSecondsPerShift} s</b> (3 m 45 s)<br>
+    Per clock-hour: <b>≈ ${fmtWindow(M.centralSecondsPerHourSourced)}</b><br>
+    Central / day: <b>${M.centralPerDay}</b> (= 56.25 × 12) — not 720<br>
+    <span class="muted">User toggle: 4 min/hour = 240 s = 6.67% of the hour (synthesis)</span><br>
+    State: window <b>${s.windowMode}</b> · closed <b>${s.closed}</b> · closeProg ${(s.closeProg||0).toFixed(2)}`;
+  $('#collapseExplainBody').innerHTML = `${ex(COLLAPSE_SOURCED, 'What the texts support ▸')}${ex(COLLAPSE_INTRO, 'About this exploration ▸')}${ex(COLLAPSE_CROSS, 'Cross-links ▸')}<div class="warn">${COLLAPSE_SYNTHESIS_NOTE}</div>`;
+  $('#cCloseGap').textContent = s.closed ? '◈ Gap closing…' : '◈ Close the gap';
+  $('#cCloseGap').disabled = !!s.closed;
+}
+
+function showCollapseInfo() {
+  const s = collapse.S; const M = COLLAPSE_MATH;
+  $('#info').innerHTML = `<h2>Collapsing the Wheel of Time</h2>
+    <div class="badge" style="display:inline-block;margin:4px 0;padding:3px 8px;border-radius:6px;background:rgba(90,160,255,.15);border:1px solid rgba(120,180,255,.35);color:#9fd0ff;font-size:11px">Sourced: 56¼ central winds / shift · 675 / day · ≈ ${fmtWindow(M.centralSecondsPerHourSourced)} / hour</div>
+    <div class="warn" style="margin:6px 0;padding:6px 8px;border-left:2px solid #ffb84a;background:rgba(255,180,60,.08);color:#e8d4a8;font-size:11px;line-height:1.4">${COLLAPSE_SYNTHESIS_NOTE}</div>
+    <p>${s.closed ? '<b style="color:#ffd36b">Gap closed</b> — windows join into one continuous luminous stream up the central channel; the hour-ring ceases to act as a turning wheel; the local bindu brightens.' : 'The luminous arc is the central-channel window. The dark remainder is the gap. Time, in this reading, is the gap.'}</p>
+    ${ex(COLLAPSE_SOURCED)}${ex(COLLAPSE_INTRO)}${ex(COLLAPSE_CROSS)}
+    <div class="rh">References</div><ul class="refs">${refsHTML(['changkyaKilty','berzinEmpty','berzinVajravega','berzin3yr','berzinKarmaWinds','berzinArm','kilty'])}</ul>`;
+}
+
+{
+  $('#collapseScrub').oninput = (e) => setCollapseMinute(+e.target.value);
+  $('#cModeSourced').onclick = () => setCollapseMode('sourced');
+  $('#cModeUser').onclick = () => setCollapseMode('user');
+  $('#cCloseGap').onclick = () => doCloseGap();
+  $('#cReset').onclick = () => { collapse.reset(clock.elapsedTime); state.collapseMinute = 0; state.collapseMode = 'sourced'; state.collapseClosed = false; collapseUI(); };
+  $('#cFocus').onclick = () => { const [p, tg] = collapse.focus(); flyTo(p, tg); };
+  $('#cLinkYoga').onclick = () => { setMode('palace'); setStage(6); }; // Clear Light / bindu intensification stage
+  $('#cLinkBindu').onclick = () => { setMode('palace'); flyTo(new THREE.Vector3(0, D.BINDU_Y + 40, 120), new THREE.Vector3(0, D.BINDU_Y, 0)); openDrawer(); showMisc(`<h2>The bindu</h2>${ex(EXPLAIN.bindu, 'Explain ▸', true)}`); };
+  const cst = $('#collapseSheetToggle'); if (cst) cst.onclick = () => { const p = $('#collapsePanel'); p.classList.toggle('collapsed'); cst.textContent = p.classList.contains('collapsed') ? '▴ Expand collapse controls' : '▾ Collapse collapse controls'; };
+  collapseUI();
+}
+
 
 // ------------------------------------------------------------------ Purpose & References overlays
 function openOverlay(kind) { const o = $('#overlay'); o.style.display = 'grid'; state.overlay = kind;
@@ -897,7 +962,7 @@ document.querySelectorAll('#tabs [data-ov]').forEach((b) => b.onclick = () => op
 // picking
 const ray = new THREE.Raycaster(); const mouse = new THREE.Vector2(); let down = null; const tip = $('#tip');
 function pick(ev) { mouse.set(ev.clientX / innerWidth * 2 - 1, -(ev.clientY / innerHeight) * 2 + 1); ray.setFromCamera(mouse, camera);
-  const src = state.mode === 'human' ? human.pickables : state.mode === 'wind' ? wind.pickables : pickables.concat(blissShaktiSprites, extraPicks);
+  const src = state.mode === 'human' ? human.pickables : state.mode === 'wind' ? wind.pickables : state.mode === 'collapse' ? collapse.pickables : pickables.concat(blissShaktiSprites, extraPicks);
   const vis = src.filter((o) => { let v = o.visible; o.traverseAncestors((a) => { if (!a.visible) v = false; }); return v && (o.material.opacity === undefined || o.material.opacity > 0.05); }); const h = ray.intersectObjects(vis, false); return h.length ? h[0].object : null; }
 function describe(o) { const u = o.userData;
   if (u.type === 'shakti') { const s = D.SHAKTIS[u.idx]; return `<span class="b">${s.bija}</span><b>${s.name}</b> — ${D.FIELDS[s.field].name}: ${s.formName} · click to play its thread`; }
@@ -926,6 +991,7 @@ canvas.addEventListener('pointerup', (ev) => {
 function activate(o) { const u = o.userData;
   if (state.mode === 'human') { if (u.type === 'h_wheel') showHumanInfo('wheels', `<div class="muted">${u.name}</div>`); else if (u.type) showHumanInfo(u.type.slice(2)); return; }
   if (state.mode === 'wind') { if (u.type === 'w_shift') { setWindShift(u.i); openDrawer(); showWindInfo(); } else if (u.type === 'w_limb') { openDrawer(); showWindInfo(u.key); } return; }
+  if (state.mode === 'collapse') { if (u.type === 'c_bindu') { openDrawer(); showCollapseInfo(); } else if (u.type === 'c_shift') { setCollapseMinute(iMinuteFromShift(u.i)); openDrawer(); showCollapseInfo(); } return; }
   if (u.type === 'shakti') selectShakti(u.idx);
   else if (u.type === 'field') selectField(state.field === u.fi ? null : u.fi);
   else if (u.type === 'matrika') { const m = D.MATRIKAS[u.k]; const F = D.FIELDS.find((f) => f.matrika === u.k);
@@ -965,6 +1031,7 @@ function animate() {
   state.phowaHuman = state.tummoStep === PHOWA_STEP ? Math.min(1, (t - human.stepT0) / PHOWA_DUR) : 0;
   if (state.mode === 'human') { human.update(t, dt); bloom.strength = 0.75; bloom.radius = 0.5; composer.render(); updateLabels(human.scene); return; }
   if (state.mode === 'wind') { wind.update(t, dt); state.windShift = wind.S.shift; state.windHour = wind.S.hour; state.windDawn = wind.S.dawnSlot; bloom.strength = 0.7; bloom.radius = 0.45; composer.render(); updateLabels(wind.scene); return; }
+  if (state.mode === 'collapse') { collapse.update(t, dt); state.collapseMinute = collapse.S.minute; state.collapseMode = collapse.S.windowMode; state.collapseClosed = collapse.S.closed; bloom.strength = 0.75 + 0.35 * (collapse.S.closeProg || 0); bloom.radius = 0.5; composer.render(); updateLabels(collapse.scene); return; }
   // phowa progress: only after the phowa button was clicked (stage 8), eased over PHOWA_DUR seconds
   const phT = st === 8 ? Math.min(1, (t - stageT0) / PHOWA_DUR) : 0, phE = phT * phT * (3 - 2 * phT); state.phowa = phT;
 
@@ -1132,7 +1199,7 @@ async function boot() {
   // park palace/human cameras; current mode already 'wind'
   camera.position.copy(wind.home.pos); controls.target.copy(wind.home.target); controls.update(); renderPass.scene = wind.scene; controls.minDistance = 8;
   animate();
-  window.__app = { setAscension, asc, wind, setWindShift, setWindHour, setWindDawn, now: () => clock.elapsedTime, setThogal, setStage, selectShakti, selectField, setMorph, focusShakti, focusCurrent, flyTo, setMode, setTummo, playThread, goPhase, stopChain, openOverlay, projectShakti: (i) => { const v = shaktiWorld(i, new THREE.Vector3()).project(camera); return [(v.x + 1) / 2 * innerWidth, (1 - v.y) / 2 * innerHeight]; }, getChain: () => chain && { i: chain.i, n: chain.phases.length, playing: chain.playing, form: chain.phases[chain.i].form }, topView: () => $('#topView').click(), resetView: () => $('#resetView').click(), camera, controls, state };
+  window.__app = { setAscension, asc, wind, collapse, setWindShift, setWindHour, setWindDawn, setCollapseMinute, setCollapseMode, doCloseGap, now: () => clock.elapsedTime, setThogal, setStage, selectShakti, selectField, setMorph, focusShakti, focusCurrent, flyTo, setMode, setTummo, playThread, goPhase, stopChain, openOverlay, projectShakti: (i) => { const v = shaktiWorld(i, new THREE.Vector3()).project(camera); return [(v.x + 1) / 2 * innerWidth, (1 - v.y) / 2 * innerHeight]; }, getChain: () => chain && { i: chain.i, n: chain.phases.length, playing: chain.playing, form: chain.phases[chain.i].form }, topView: () => $('#topView').click(), resetView: () => $('#resetView').click(), camera, controls, state };
   setTimeout(() => { $('#loading').style.opacity = 0; setTimeout(() => $('#loading').remove(), 1000); }, 300);
   window.__ready = true;
 }
