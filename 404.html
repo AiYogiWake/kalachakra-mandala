@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Redirecting…</title>
+<meta name="robots" content="noindex" />
+<script>
+(function () {
+  // GitHub Pages serves this 404.html while keeping the original path in the address bar.
+  // Map known path-style deep links onto the SPA hash routes.
+  var base = '/kalachakra-mandala/';
+  var path = location.pathname;
+  if (path.indexOf(base) === 0) path = path.slice(base.length);
+  path = path.replace(/^\/+|\/+$/g, '').toLowerCase();
+  var map = {
+    'windmap': 'windmap',
+    'wind-map': 'windmap',
+    'windmap.html': 'windmap',
+    'wind-map.html': 'windmap',
+    '24-hour-pranic-wind-map': 'windmap',
+    'pranic-wind-map': 'windmap',
+    'collapse': 'collapse',
+    'collapse.html': 'collapse',
+    'collapse-time': 'collapse',
+    'wheel': 'collapse',
+    'palace': 'palace',
+    'human': 'human'
+  };
+  var hash = map[path];
+  if (hash) {
+    location.replace(base + '#' + hash);
+    return;
+  }
+  document.title = 'Not found — Kalachakra Mandala Palace';
+  document.addEventListener('DOMContentLoaded', function () {
+    document.body.innerHTML = '<main style="font-family:system-ui,sans-serif;max-width:36rem;margin:4rem auto;padding:0 1rem;color:#cfd7ff;background:#020309">' +
+      '<h1 style="color:#ffd36b">Page not found</h1>' +
+      '<p>This site is a single-page app. Try the <a style="color:#9fd0ff" href="' + base + '">home experience</a>, ' +
+      'the <a style="color:#9fd0ff" href="' + base + '#windmap">24-Hour Pranic Wind Map</a>, or ' +
+      '<a style="color:#9fd0ff" href="' + base + '#collapse">Collapsing the Wheel of Time</a>.</p></main>';
+  });
+})();
+</script>
+</head>
+<body style="background:#020309;color:#cfd7ff;font-family:system-ui,sans-serif;padding:2rem">
+<p>Looking for a tab…</p>
+</body>
+</html>

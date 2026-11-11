@@ -3,6 +3,25 @@ from playwright.async_api import async_playwright
 URL = os.environ.get('KALA_URL', 'http://localhost:8765/')
 OUT = os.environ.get('KALA_SHOTS', 'shots')
 os.makedirs(OUT, exist_ok=True)
+
+async def click_tab(pg, mode):
+    """Click a mode tab, opening the ≤420px hamburger menu first if needed."""
+    vis = await pg.evaluate("""(m) => {
+      const b = document.querySelector('#tabs [data-mode="'+m+'"]');
+      if (!b) return {ok:false};
+      const r = b.getBoundingClientRect();
+      const cs = getComputedStyle(b);
+      return {ok:true, visible: cs.display!=='none' && cs.visibility!=='hidden' && r.width>0 && r.height>0};
+    }""", mode)
+    if not vis.get('visible'):
+        # open nav menu
+        toggle = await pg.query_selector('#navToggle')
+        if toggle and await toggle.is_visible():
+            await pg.click('#navToggle')
+            await pg.wait_for_timeout(200)
+    await pg.click(f'#tabs [data-mode="{mode}"]')
+    await pg.wait_for_timeout(400)
+
 results = []
 def check(name, cond, detail=''):
     results.append((name, bool(cond), detail)); print(('PASS ' if cond else 'FAIL ') + name + ' ' + str(detail)[:180], flush=True)
@@ -13,7 +32,7 @@ async def layout_probe(pg, w, h, tag):
     # ensure wind mode
     mode = await pg.evaluate('__state.mode')
     if mode != 'wind':
-        await pg.click('#tabs [data-mode="wind"]'); await pg.wait_for_timeout(500)
+        await click_tab(pg, 'wind')
     # drawer closed
     await pg.evaluate("document.getElementById('info').classList.remove('open'); document.getElementById('drawerBtn').classList.remove('on')")
     await pg.wait_for_timeout(200)
@@ -118,11 +137,11 @@ async def main():
         await pg.screenshot(path=f'{OUT}/v6-layout-human-1440.png')
         # phone human/palace
         await pg.set_viewport_size({'width':390,'height':844})
-        await pg.click('#tabs [data-mode="palace"]'); await pg.wait_for_timeout(500)
+        await click_tab(pg, 'palace')
         await pg.screenshot(path=f'{OUT}/v6-layout-palace-390.png')
-        await pg.click('#tabs [data-mode="human"]'); await pg.wait_for_timeout(500)
+        await click_tab(pg, 'human')
         await pg.screenshot(path=f'{OUT}/v6-layout-human-390.png')
-        await pg.click('#tabs [data-mode="wind"]'); await pg.wait_for_timeout(400)
+        await click_tab(pg, 'wind')
         check('no console errors', len(logs)==0, logs[:5])
         json.dump([{'name':n,'pass':c,'detail':str(d)} for n,c,d in results], open(f'{OUT}/v6-assertions.json','w'), indent=1)
         print('TOTAL', len(results), 'PASS', sum(1 for _,c,_ in results if c), 'FAIL', sum(1 for _,c,_ in results if not c))
