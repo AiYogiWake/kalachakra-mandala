@@ -759,7 +759,35 @@ const wind = createWindMap({ makePoints, glowSprite, makeLabel, lineMat, setFade
 const collapse = createCollapse({ makePoints, glowSprite, makeLabel, lineMat, setFade, state });
 let camStore = { palace: null, human: { pos: human.home.pos.clone(), target: human.home.target.clone() }, wind: { pos: wind.home.pos.clone(), target: wind.home.target.clone() }, collapse: { pos: collapse.home.pos.clone(), target: collapse.home.target.clone() } };
 
+const TAB_HASH = { wind: 'windmap', collapse: 'collapse', palace: 'palace', human: 'human' };
+const HASH_TAB = {
+  wind: 'wind', windmap: 'wind', 'wind-map': 'wind', 'pranic-wind-map': 'wind', '24-hour-pranic-wind-map': 'wind',
+  collapse: 'collapse', 'collapse-time': 'collapse', wheel: 'collapse',
+  palace: 'palace', human: 'human',
+};
+function tabLabel(m) {
+  const b = document.querySelector(`#tabs [data-mode="${m}"]`);
+  return (b && b.textContent.trim()) || (m === 'wind' ? '24-Hour Pranic Wind Map' : m);
+}
+function syncTabChrome(m) {
+  document.querySelectorAll('#tabs [data-mode]').forEach((b) => b.classList.toggle('active', b.dataset.mode === m));
+  const nc = $('#navCurrent'); if (nc) nc.textContent = tabLabel(m);
+  const tabs = $('#tabs'); if (tabs) { tabs.classList.remove('open'); const t = $('#navToggle'); if (t) t.setAttribute('aria-expanded', 'false'); }
+  const want = TAB_HASH[m] || m;
+  const cur = (location.hash || '').replace(/^#/, '').toLowerCase();
+  if (cur !== want) {
+    try { history.replaceState(null, '', `${location.pathname}${location.search}#${want}`); } catch (e) { location.hash = want; }
+  }
+}
+function routeFromUrl() {
+  const q = (new URLSearchParams(location.search).get('tab') || '').toLowerCase();
+  const h = (location.hash || '').replace(/^#/, '').toLowerCase();
+  const raw = q || h;
+  if (!raw) return null;
+  return HASH_TAB[raw] || null;
+}
 function setMode(m) {
+  syncTabChrome(m);
   if (m === state.mode) return; camStore[state.mode] = { pos: camera.position.clone(), target: controls.target.clone() };
   state.mode = m; fly = null; const c = camStore[m] || { pos: HOME.pos.clone(), target: HOME.target.clone() }; camera.position.copy(c.pos); controls.target.copy(c.target); controls.update();
   renderPass.scene = m === 'human' ? human.scene : m === 'wind' ? wind.scene : m === 'collapse' ? collapse.scene : scene;
@@ -768,7 +796,6 @@ function setMode(m) {
   document.body.classList.toggle('wind', m === 'wind');
   document.body.classList.toggle('collapse', m === 'collapse');
   document.body.classList.toggle('palace', m === 'palace');
-  document.querySelectorAll('#tabs [data-mode]').forEach((b) => b.classList.toggle('active', b.dataset.mode === m));
   closeDrawer();
   if (m === 'human') { showHumanInfo('intro'); tummoText(); }
   else if (m === 'wind') { windUI(); showWindInfo(); }
@@ -837,7 +864,8 @@ function setWindDawn(id) { wind.setDawn(id, clock.elapsedTime); state.windHour =
 
 function windUI() {
   const sh = WIND_SHIFTS[wind.S.shift];
-  $('#windWarn').textContent = WIND_INTERP_NOTE;
+  const ww = $('#windWarn'); if (ww) ww.textContent = WIND_INTERP_NOTE;
+  const wb = $('#windWarnBanner'); if (wb) wb.textContent = 'INTERPRETIVE — limb clock is a schematic, not a textual timetable';
   $('#windHourLbl').textContent = hourToLabel(wind.S.hour);
   const scrub = Math.round((((wind.S.hour - 0) + 24) % 24) * 10); // 0.1h steps → but scrub is 0..239 for 6min
   $('#windScrub').value = Math.round(wind.S.hour * 10) % 240;
@@ -850,7 +878,7 @@ function windUI() {
     Region (interpretive): ${dawn ? dawn.title + ' — ' + dawn.entry : sh.region}<br>
     Limbs lit: ${[...wind.S.limbs].join(', ')}<br>
     Cross-link: yoga stage ${sh.yoga} · field <b>${sh.field}</b> · floor <b>${sh.floor}</b>`;
-  $('#windExplainBody').innerHTML = `${ex(WIND_SOURCED, 'What the texts support ▸')}${ex(WIND_INTRO, 'About this map ▸')}${ex(WIND_CROSS, 'Cross-links ▸')}<div class="warn">${WIND_INTERP_NOTE}</div>` +
+  $('#windExplainBody').innerHTML = `${ex(WIND_SOURCED, 'What the texts support ▸')}${ex(WIND_INTRO, 'About this map ▸')}${ex(WIND_CROSS, 'Cross-links ▸')}` +
     (dawn ? `<details class="ex"><summary>${dawn.title}</summary><p>${dawn.plain}</p><p class="muted">${dawn.channels} · ${dawn.entry} · ${dawn.element}</p></details>` : '');
 }
 
@@ -859,7 +887,8 @@ function showWindInfo(limbKey) {
   const dawn = DAWN_SLOTS.find((d) => d.id === wind.S.dawnSlot);
   $('#info').innerHTML = `<h2>24-Hour Pranic Wind Map</h2>
     <div class="badge" style="display:inline-block;margin:4px 0;padding:3px 8px;border-radius:6px;background:rgba(90,160,255,.15);border:1px solid rgba(120,180,255,.35);color:#9fd0ff;font-size:11px">Sourced core: ${BREATHS_PER_DAY.toLocaleString()} breaths / day = 12 × ${BREATHS_PER_SHIFT}</div>
-    <div class="warn" style="margin:6px 0;padding:6px 8px;border-left:2px solid #ffb84a;background:rgba(255,180,60,.08);color:#e8d4a8;font-size:11px;line-height:1.4">${WIND_INTERP_NOTE}</div>
+    <div class="warn warn-short" style="margin:6px 0;padding:4px 8px;border-left:2px solid #ffb84a;background:rgba(255,180,60,.08);color:#e8d4a8;font-size:11px;line-height:1.35">INTERPRETIVE — limb clock is a schematic, not a textual timetable</div>
+    <details class="ex"><summary>Interpretive schematic note ▸</summary><div class="warn" style="margin:6px 0;padding:6px 8px;border-left:2px solid #ffb84a;background:rgba(255,180,60,.08);color:#e8d4a8;font-size:11px;line-height:1.4">${WIND_INTERP_NOTE}</div></details>
     ${limbKey ? `<p class="muted">Limb focus: <b>${limbKey}</b> (interpretive highlight)</p>` : ''}
     <p><b style="color:${sh.color}">${sh.sign}</b> · ${hourToLabel(sh.startH)}–${hourToLabel(sh.endH)} · ${sh.nostril} nostril primary</p>
     ${dawn ? `<p><b>${dawn.title}</b><br>${dawn.plain}</p>` : `<p>${sh.region}</p>`}
@@ -895,7 +924,8 @@ function doCloseGap() { collapse.closeGap(clock.elapsedTime); state.collapseClos
 
 function collapseUI() {
   const s = collapse.S; const M = COLLAPSE_MATH;
-  $('#collapseWarn').textContent = COLLAPSE_SYNTHESIS_NOTE;
+  const cw = $('#collapseWarn'); if (cw) cw.textContent = COLLAPSE_SYNTHESIS_NOTE;
+  const cb = $('#collapseWarnBanner'); if (cb) cb.textContent = 'USER SYNTHESIS — 4 min/hour · close the gap · not a sourced statement';
   const mm = Math.floor(s.minute), ss = Math.round((s.minute - mm) * 60);
   $('#collapseMinuteLbl').textContent = `${mm}:${String(ss).padStart(2,'0')} into the hour`;
   $('#collapseScrub').value = s.minute;
@@ -916,7 +946,7 @@ function collapseUI() {
     Central / day: <b>${M.centralPerDay}</b> (= 56.25 × 12) — not 720<br>
     <span class="muted">User toggle: 4 min/hour = 240 s = 6.67% of the hour (synthesis)</span><br>
     State: window <b>${s.windowMode}</b> · closed <b>${s.closed}</b> · closeProg ${(s.closeProg||0).toFixed(2)}`;
-  $('#collapseExplainBody').innerHTML = `${ex(COLLAPSE_SOURCED, 'What the texts support ▸')}${ex(COLLAPSE_INTRO, 'About this exploration ▸')}${ex(COLLAPSE_CROSS, 'Cross-links ▸')}<div class="warn">${COLLAPSE_SYNTHESIS_NOTE}</div>`;
+  $('#collapseExplainBody').innerHTML = `${ex(COLLAPSE_SOURCED, 'What the texts support ▸')}${ex(COLLAPSE_INTRO, 'About this exploration ▸')}${ex(COLLAPSE_CROSS, 'Cross-links ▸')}`;
   $('#cCloseGap').textContent = s.closed ? '◈ Gap closing…' : '◈ Close the gap';
   $('#cCloseGap').disabled = !!s.closed;
 }
@@ -925,7 +955,8 @@ function showCollapseInfo() {
   const s = collapse.S; const M = COLLAPSE_MATH;
   $('#info').innerHTML = `<h2>Collapsing the Wheel of Time</h2>
     <div class="badge" style="display:inline-block;margin:4px 0;padding:3px 8px;border-radius:6px;background:rgba(90,160,255,.15);border:1px solid rgba(120,180,255,.35);color:#9fd0ff;font-size:11px">Sourced: 56¼ central winds / shift · 675 / day · ≈ ${fmtWindow(M.centralSecondsPerHourSourced)} / hour</div>
-    <div class="warn" style="margin:6px 0;padding:6px 8px;border-left:2px solid #ffb84a;background:rgba(255,180,60,.08);color:#e8d4a8;font-size:11px;line-height:1.4">${COLLAPSE_SYNTHESIS_NOTE}</div>
+    <div class="warn warn-short" style="margin:6px 0;padding:4px 8px;border-left:2px solid #ffb84a;background:rgba(255,180,60,.08);color:#e8d4a8;font-size:11px;line-height:1.35">USER SYNTHESIS — 4 min/hour · close the gap · not a sourced statement</div>
+    <details class="ex"><summary>User synthesis ▸</summary><div class="warn" style="margin:6px 0;padding:6px 8px;border-left:2px solid #ffb84a;background:rgba(255,180,60,.08);color:#e8d4a8;font-size:11px;line-height:1.4">${COLLAPSE_SYNTHESIS_NOTE}</div></details>
     <p>${s.closed ? '<b style="color:#ffd36b">Gap closed</b> — windows join into one continuous luminous stream up the central channel; the hour-ring ceases to act as a turning wheel; the local bindu brightens.' : 'The luminous arc is the central-channel window. The dark remainder is the gap. Time, in this reading, is the gap.'}</p>
     ${ex(COLLAPSE_SOURCED)}${ex(COLLAPSE_INTRO)}${ex(COLLAPSE_CROSS)}
     <div class="rh">References</div><ul class="refs">${refsHTML(['changkyaKilty','berzinEmpty','berzinVajravega','berzin3yr','berzinKarmaWinds','berzinArm','kilty'])}</ul>`;
@@ -957,7 +988,9 @@ function openOverlay(kind) { const o = $('#overlay'); o.style.display = 'grid'; 
 $('#ovClose').onclick = () => { $('#overlay').style.display = 'none'; state.overlay = null; };
 $('#overlay').addEventListener('click', (e) => { if (e.target.id === 'overlay') $('#ovClose').click(); });
 document.querySelectorAll('#tabs [data-mode]').forEach((b) => b.onclick = () => setMode(b.dataset.mode));
-document.querySelectorAll('#tabs [data-ov]').forEach((b) => b.onclick = () => openOverlay(b.dataset.ov));
+document.querySelectorAll('#tabs [data-ov]').forEach((b) => b.onclick = () => { const tabs = $('#tabs'); if (tabs) { tabs.classList.remove('open'); const t = $('#navToggle'); if (t) t.setAttribute('aria-expanded', 'false'); } openOverlay(b.dataset.ov); });
+{ const nt = $('#navToggle'); if (nt) nt.onclick = (e) => { e.stopPropagation(); const tabs = $('#tabs'); const open = tabs.classList.toggle('open'); nt.setAttribute('aria-expanded', open ? 'true' : 'false'); }; }
+window.addEventListener('hashchange', () => { const m = routeFromUrl(); if (m) setMode(m); });
 
 // picking
 const ray = new THREE.Raycaster(); const mouse = new THREE.Vector2(); let down = null; const tip = $('#tip');
@@ -1199,7 +1232,11 @@ async function boot() {
   // park palace/human cameras; current mode already 'wind'
   camera.position.copy(wind.home.pos); controls.target.copy(wind.home.target); controls.update(); renderPass.scene = wind.scene; controls.minDistance = 8;
   animate();
-  window.__app = { setAscension, asc, wind, collapse, setWindShift, setWindHour, setWindDawn, setCollapseMinute, setCollapseMode, doCloseGap, now: () => clock.elapsedTime, setThogal, setStage, selectShakti, selectField, setMorph, focusShakti, focusCurrent, flyTo, setMode, setTummo, playThread, goPhase, stopChain, openOverlay, projectShakti: (i) => { const v = shaktiWorld(i, new THREE.Vector3()).project(camera); return [(v.x + 1) / 2 * innerWidth, (1 - v.y) / 2 * innerHeight]; }, getChain: () => chain && { i: chain.i, n: chain.phases.length, playing: chain.playing, form: chain.phases[chain.i].form }, topView: () => $('#topView').click(), resetView: () => $('#resetView').click(), camera, controls, state };
+  window.__app = { setAscension, asc, wind, collapse, setWindShift, setWindHour, setWindDawn, setCollapseMinute, setCollapseMode, doCloseGap, now: () => clock.elapsedTime, setThogal, setStage, selectShakti, selectField, setMorph, focusShakti, focusCurrent, flyTo, setMode, setTummo, playThread, goPhase, stopChain, openOverlay, projectShakti: (i) => { const v = shaktiWorld(i, new THREE.Vector3()).project(camera); return [(v.x + 1) / 2 * innerWidth, (1 - v.y) / 2 * innerHeight]; }, getChain: () => chain && { i: chain.i, n: chain.phases.length, playing: chain.playing, form: chain.phases[chain.i].form }, topView: () => $('#topView').click(), resetView: () => $('#resetView').click(), camera, controls, state, routeFromUrl };
+  // Deep links: #windmap / #collapse / ?tab=… (path-style /windmap redirects via windmap/index.html or 404.html)
+  const routed = routeFromUrl();
+  if (routed && routed !== 'wind') setMode(routed);
+  else syncTabChrome('wind');
   setTimeout(() => { $('#loading').style.opacity = 0; setTimeout(() => $('#loading').remove(), 1000); }, 300);
   window.__ready = true;
 }
